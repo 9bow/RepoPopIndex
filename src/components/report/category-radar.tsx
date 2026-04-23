@@ -8,6 +8,7 @@ import {
   PolarRadiusAxis,
   ResponsiveContainer,
 } from "recharts";
+import { useLocale } from "@/contexts/locale-context";
 import type { CategoryScore } from "@/lib/types";
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function CategoryRadar({ categoryScores, excludedCategories }: Props) {
+  const { d } = useLocale();
   const data = Object.entries(categoryScores).map(([key, cat]) => ({
     category: cat.name || key,
     score: excludedCategories.includes(key) ? 0 : cat.score,
@@ -23,7 +25,7 @@ export function CategoryRadar({ categoryScores, excludedCategories }: Props) {
 
   if (data.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">No category data available.</p>
+      <p className="text-sm text-muted-foreground">{d.categoryRadar.none}</p>
     );
   }
 
@@ -42,7 +44,7 @@ export function CategoryRadar({ categoryScores, excludedCategories }: Props) {
             tick={{ fontSize: 10 }}
           />
           <Radar
-            name="Score"
+            name={d.categoryRadar.seriesName}
             dataKey="score"
             stroke="hsl(var(--primary))"
             fill="hsl(var(--primary))"

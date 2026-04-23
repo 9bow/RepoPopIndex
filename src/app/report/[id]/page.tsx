@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -10,10 +11,14 @@ import { CategoryCards } from "@/components/report/category-cards";
 import { StarQualityCard } from "@/components/report/star-quality-card";
 import { SocialBuzzCard } from "@/components/report/social-buzz-card";
 import { MetricsTable } from "@/components/report/metrics-table";
-import type { AnalysisReport, ProgressUpdate } from "@/lib/types";
+import { useLocale } from "@/contexts/locale-context";
+import { formatTemplate } from "@/lib/i18n/dictionary";
+import { translateStage } from "@/lib/i18n/stage";
+import type { AnalysisReport, Period, ProgressUpdate } from "@/lib/types";
 
 export default function ReportPage() {
   const { id } = useParams<{ id: string }>();
+  const { d, locale } = useLocale();
   const [report, setReport] = useState<AnalysisReport | null>(null);
   const [progress, setProgress] = useState<ProgressUpdate | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -22,24 +27,24 @@ export default function ReportPage() {
     const res = await fetch(`/api/status/${id}`);
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error ?? "Analysis not found");
+      setError(data.error ?? d.report.notFound);
       return null;
     }
     return data as ProgressUpdate;
-  }, [id]);
+  }, [id, d.report.notFound]);
 
   const fetchReport = useCallback(async () => {
     const res = await fetch(`/api/report/${id}`);
     if (res.status === 202) return null;
     if (!res.ok) {
-      setError("Failed to load report");
+      setError(d.report.loadFailed);
       return null;
     }
     return (await res.json()) as AnalysisReport;
-  }, [id]);
+  }, [id, d.report.loadFailed]);
 
   useEffect(() => {
-    let timer: ReturnType<typeof setInterval>;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
 
     async function poll() {
       const status = await fetchStatus();
@@ -51,46 +56,56 @@ export default function ReportPage() {
         const r = await fetchReport();
         if (r) {
           setReport(r);
-          clearInterval(timer);
+          if (intervalId) clearInterval(intervalId);
         }
       } else if (status.status === "failed") {
-        setError(status.stage ?? "Analysis failed");
-        clearInterval(timer);
+        setError(status.stage ?? translateStage("Unknown error", locale));
+        if (intervalId) clearInterval(intervalId);
       }
     }
 
-    poll();
-    timer = setInterval(poll, 2000);
-    return () => clearInterval(timer);
-  }, [fetchStatus, fetchReport]);
+    void poll();
+    intervalId = setInterval(poll, 2000);
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [fetchStatus, fetchReport, locale]);
 
   if (error) {
     return (
-      <main className="flex min-h-screen items-center justify-center px-4">
+      <main className="flex min-h-screen items-center justify-center px-4 pt-16">
         <div className="text-center space-y-4">
-          <h1 className="text-2xl font-bold text-destructive">Analysis Failed</h1>
+          <h1 className="text-2xl font-bold text-destructive">
+            {d.report.failTitle}
+          </h1>
           <p className="text-muted-foreground">{error}</p>
-          <a href="/" className="inline-block text-sm underline">
-            Try another repository
-          </a>
+          <Link href="/" className="inline-block text-sm underline">
+            {d.report.tryAnother}
+          </Link>
         </div>
       </main>
     );
   }
 
   if (!report) {
+    const pos = progress?.position;
+    const waitSec = pos != null && pos > 0 ? pos * 15 : null;
     return (
-      <main className="flex min-h-screen items-center justify-center px-4">
+      <main className="flex min-h-screen items-center justify-center px-4 pt-16">
         <div className="w-full max-w-md space-y-6 text-center">
-          <h1 className="text-2xl font-bold">Analyzing Repository...</h1>
+          <h1 className="text-2xl font-bold">{d.report.analyzingTitle}</h1>
           <Progress value={progress?.progress ?? 0} className="h-3" />
           <p className="text-sm text-muted-foreground">
-            {progress?.stage ?? "Preparing..."}
+            {progress?.stage
+              ? translateStage(progress.stage, locale)
+              : d.common.loading}
           </p>
-          {progress?.status === "queued" && progress.position != null && (
+          {progress?.status === "queued" && pos != null && (
             <p className="text-sm text-muted-foreground">
-              Queue position: #{progress.position}
-              {progress.estimatedWait && ` — ${progress.estimatedWait}`}
+              {formatTemplate(d.report.queuePosition, { n: pos })}
+              {waitSec != null
+                ? ` ${formatTemplate(d.report.estimatedWait, { n: waitSec })}`
+                : ""}
             </p>
           )}
         </div>
@@ -98,9 +113,11 @@ export default function ReportPage() {
     );
   }
 
+  const periodLabel = d.report.periods[report.period as Period];
+  const dateLocale = locale === "ko" ? "ko-KR" : "en-US";
+
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 space-y-8">
-      {/* Section A: Header */}
+    <main className="mx-auto max-w-5xl px-4 py-8 pt-20 space-y-8">
       <header className="space-y-4">
         <div className="flex items-center gap-3">
           <Badge variant="outline">
@@ -112,55 +129,48 @@ export default function ReportPage() {
         </div>
         {report.status === "partial" && (
           <div className="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 dark:border-yellow-700 dark:bg-yellow-950 dark:text-yellow-200">
-            Some data sources were unavailable — score based on available data.
+            {d.report.partialBanner}
           </div>
         )}
         <ScoreGauge score={report.compositeScore} />
       </header>
 
-      {/* Section B: Radar Chart */}
       <section>
-        <h2 className="mb-4 text-lg font-semibold">Category Overview</h2>
+        <h2 className="mb-4 text-lg font-semibold">{d.report.categoryOverview}</h2>
         <CategoryRadar
           categoryScores={report.categoryScores}
           excludedCategories={report.excludedCategories}
         />
       </section>
 
-      {/* Section C: Category Breakdown */}
       <section>
-        <h2 className="mb-4 text-lg font-semibold">Category Breakdown</h2>
+        <h2 className="mb-4 text-lg font-semibold">{d.report.categoryBreakdown}</h2>
         <CategoryCards categoryScores={report.categoryScores} />
       </section>
 
-      {/* Section D: Star Quality */}
       {report.starQuality && (
         <section>
-          <h2 className="mb-4 text-lg font-semibold">Star Quality Analysis</h2>
+          <h2 className="mb-4 text-lg font-semibold">{d.report.starQuality}</h2>
           <StarQualityCard starQuality={report.starQuality} />
         </section>
       )}
 
-      {/* Section E: Social Buzz */}
       <section>
-        <h2 className="mb-4 text-lg font-semibold">Social Buzz</h2>
+        <h2 className="mb-4 text-lg font-semibold">{d.report.socialBuzz}</h2>
         <SocialBuzzCard socialBuzz={report.socialBuzz} />
       </section>
 
-      {/* Section F: Detailed Metrics */}
       <section>
-        <h2 className="mb-4 text-lg font-semibold">Detailed Metrics</h2>
+        <h2 className="mb-4 text-lg font-semibold">{d.report.detailedMetrics}</h2>
         <MetricsTable categoryScores={report.categoryScores} />
       </section>
 
-      {/* Section G: Footer */}
       <footer className="border-t pt-6 text-sm text-muted-foreground space-y-2">
+        <p>{d.report.footerFormula}</p>
         <p>
-          Score formula: S_i = log(1 + raw) / log(1 + max). Categories weighted
-          and averaged. Missing data excluded proportionally.
-        </p>
-        <p>
-          Analyzed: {new Date(report.createdAt).toLocaleString()} | Period: {report.period}
+          {d.report.analyzed}:{" "}
+          {new Date(report.createdAt).toLocaleString(dateLocale)} | {d.report.period}
+          : {periodLabel}
         </p>
       </footer>
     </main>

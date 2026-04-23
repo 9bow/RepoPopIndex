@@ -1,19 +1,14 @@
 "use client";
 
+import { useLocale } from "@/contexts/locale-context";
+import { scoreLabelKey } from "@/lib/i18n/dictionary";
+
 function scoreColor(score: number): string {
   if (score >= 80) return "text-green-500";
   if (score >= 60) return "text-blue-500";
   if (score >= 40) return "text-yellow-500";
   if (score >= 20) return "text-orange-500";
   return "text-red-500";
-}
-
-function scoreLabel(score: number): string {
-  if (score >= 80) return "Highly Active";
-  if (score >= 60) return "Active";
-  if (score >= 40) return "Moderate";
-  if (score >= 20) return "Low Activity";
-  return "Minimal Activity";
 }
 
 function strokeColor(score: number): string {
@@ -25,7 +20,10 @@ function strokeColor(score: number): string {
 }
 
 export function ScoreGauge({ score }: { score: number }) {
+  const { d } = useLocale();
   const rounded = Math.round(score);
+  const key = scoreLabelKey(score);
+  const label = d.scoreGauge[key];
   const radius = 80;
   const circumference = Math.PI * radius;
   const offset = circumference - (score / 100) * circumference;
@@ -60,10 +58,8 @@ export function ScoreGauge({ score }: { score: number }) {
         </div>
       </div>
       <div>
-        <p className={`text-xl font-semibold ${scoreColor(score)}`}>
-          {scoreLabel(score)}
-        </p>
-        <p className="text-sm text-muted-foreground">Popularity Index</p>
+        <p className={`text-xl font-semibold ${scoreColor(score)}`}>{label}</p>
+        <p className="text-sm text-muted-foreground">{d.scoreGauge.index}</p>
       </div>
     </div>
   );

@@ -14,6 +14,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { useLocale } from "@/contexts/locale-context";
 import type { CategoryScore } from "@/lib/types";
 
 export function MetricsTable({
@@ -21,6 +22,7 @@ export function MetricsTable({
 }: {
   categoryScores: Record<string, CategoryScore>;
 }) {
+  const { d } = useLocale();
   const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
 
   function toggle(key: string) {
@@ -35,7 +37,9 @@ export function MetricsTable({
   const entries = Object.entries(categoryScores);
 
   if (entries.length === 0) {
-    return <p className="text-sm text-muted-foreground">No metrics available.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">{d.metricsTable.none}</p>
+    );
   }
 
   return (
@@ -49,18 +53,24 @@ export function MetricsTable({
           <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left hover:bg-muted/50">
             <span className="text-sm font-medium">{cat.name || key}</span>
             <span className="text-sm text-muted-foreground">
-              {cat.insufficient ? "Insufficient Data" : `${Math.round(cat.score)}/100`}
+              {cat.insufficient
+                ? d.metricsTable.insufficient
+                : `${Math.round(cat.score)}/100`}
             </span>
           </CollapsibleTrigger>
           <CollapsibleContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Metric</TableHead>
-                  <TableHead className="text-right">Raw</TableHead>
-                  <TableHead className="text-right">Normalized</TableHead>
-                  <TableHead className="text-right">Weight</TableHead>
-                  <TableHead className="text-right">Contribution</TableHead>
+                  <TableHead>{d.metricsTable.metric}</TableHead>
+                  <TableHead className="text-right">{d.metricsTable.raw}</TableHead>
+                  <TableHead className="text-right">
+                    {d.metricsTable.normalized}
+                  </TableHead>
+                  <TableHead className="text-right">{d.metricsTable.weight}</TableHead>
+                  <TableHead className="text-right">
+                    {d.metricsTable.contribution}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useLocale } from "@/contexts/locale-context";
 
 const PERIODS = ["1w", "1m", "3m", "6m", "1y"] as const;
 const PERIOD_LABELS: Record<string, string> = {
@@ -22,6 +23,7 @@ function detectPlatform(url: string): "github" | "huggingface" | null {
 
 export function UrlInput() {
   const router = useRouter();
+  const { d } = useLocale();
   const [url, setUrl] = useState("");
   const [period, setPeriod] = useState<string>("3m");
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +37,7 @@ export function UrlInput() {
       setError(null);
 
       if (!url.trim()) {
-        setError("Please enter a repository URL");
+        setError(d.home.errUrlEmpty);
         return;
       }
 
@@ -50,18 +52,25 @@ export function UrlInput() {
         const data = await res.json();
 
         if (!res.ok) {
-          setError(data.error ?? data.message ?? "Analysis failed");
+          if (res.status === 503) {
+            setError(d.home.err503);
+            return;
+          }
+          const msg = data.error ?? data.message;
+          setError(
+            typeof msg === "string" && msg ? msg : d.home.errAnalysis
+          );
           return;
         }
 
         router.push(`/report/${data.id}`);
       } catch {
-        setError("Network error. Please try again.");
+        setError(d.home.errNetwork);
       } finally {
         setLoading(false);
       }
     },
-    [url, period, router]
+    [url, period, router, d.home]
   );
 
   return (
@@ -69,7 +78,7 @@ export function UrlInput() {
       <div className="relative">
         <Input
           type="text"
-          placeholder="github.com/facebook/react or huggingface.co/meta-llama/Llama-3"
+          placeholder={d.home.urlPlaceholder}
           value={url}
           onChange={(e) => {
             setUrl(e.target.value);
@@ -86,7 +95,7 @@ export function UrlInput() {
       </div>
 
       <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">Period:</span>
+        <span className="text-sm text-muted-foreground">{d.home.period}</span>
         <div className="flex gap-1">
           {PERIODS.map((p) => (
             <button
@@ -108,7 +117,7 @@ export function UrlInput() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <Button type="submit" className="h-11 w-full text-base" disabled={loading}>
-        {loading ? "Analyzing..." : "Analyze Repository"}
+        {loading ? d.home.analyzing : d.home.analyze}
       </Button>
     </form>
   );
