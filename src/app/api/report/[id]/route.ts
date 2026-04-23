@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { analyses, scores, rawMetrics } from "@/db/schema";
+import { analyses, scores } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { cacheGet, cacheSet, reportCacheKey, REPORT_TTL } from "@/lib/cache";
 import type { AnalysisReport } from "@/lib/types";
@@ -45,23 +45,13 @@ export async function GET(
     .where(eq(scores.analysisId, id))
     .limit(1);
 
-  const metrics = await db
-    .select()
-    .from(rawMetrics)
-    .where(eq(rawMetrics.analysisId, id));
-
-  const hnMetrics = metrics.filter((m) => m.category === "S1");
-  const hnData = hnMetrics.length > 0 ? {
-    storyCount: hnMetrics.find((m) => m.metricKey === "story_count")?.rawValue ?? 0,
-    totalPoints: hnMetrics.find((m) => m.metricKey === "total_points")?.rawValue ?? 0,
-    totalComments: hnMetrics.find((m) => m.metricKey === "total_comments")?.rawValue ?? 0,
-    topStory: hnMetrics.find((m) => m.metricKey === "top_story")?.rawJson as {
-      title: string;
-      url: string;
-      points: number;
-    } | null ?? null,
-    engagement: hnMetrics.find((m) => m.metricKey === "engagement")?.rawValue ?? 0,
-  } : null;
+  const hnData = (score?.hnData as {
+    storyCount: number;
+    totalPoints: number;
+    totalComments: number;
+    topStory: { title: string; url: string; points: number } | null;
+    engagement: number;
+  } | null) ?? null;
 
   const report: AnalysisReport = {
     id: analysis.id,

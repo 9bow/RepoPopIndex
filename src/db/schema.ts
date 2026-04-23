@@ -82,6 +82,9 @@ export const scores = pgTable(
     starQualityRecent: real("star_quality_recent"),
     starQualityHistorical: real("star_quality_historical"),
     starBurstDetected: integer("star_burst_detected").default(0),
+    // HN display data stored here so the report API never needs to JOIN raw_metrics.
+    // raw_metrics still keeps the original rows for auditing / re-scoring.
+    hnData: jsonb("hn_data"),
     scoredAt: timestamp("scored_at").defaultNow().notNull(),
   },
   (table) => [index("idx_scores_analysis").on(table.analysisId)]

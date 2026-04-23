@@ -134,6 +134,20 @@ export async function runAnalysis(params: AnalysisParams): Promise<void> {
 
     await updateStatus(analysisId, "scoring", 90, "Storing scores...");
 
+    // Extract HN display data from collector results so the report API can
+    // read it directly from scores without querying raw_metrics.
+    const hnCollector = collectorResults.find((cr) => cr.source === "hackernews");
+    const hnMetrics = hnCollector?.metrics ?? [];
+    const hnData = hnMetrics.length > 0 ? {
+      storyCount: hnMetrics.find((m) => m.metricKey === "story_count")?.rawValue ?? 0,
+      totalPoints: hnMetrics.find((m) => m.metricKey === "total_points")?.rawValue ?? 0,
+      totalComments: hnMetrics.find((m) => m.metricKey === "total_comments")?.rawValue ?? 0,
+      topStory: (hnMetrics.find((m) => m.metricKey === "top_story")?.rawJson ?? null) as {
+        title: string; url: string; points: number;
+      } | null,
+      engagement: hnMetrics.find((m) => m.metricKey === "engagement")?.rawValue ?? 0,
+    } : null;
+
     await db.insert(scores).values({
       analysisId,
       compositeScore: scoreResult.compositeScore,
@@ -144,6 +158,7 @@ export async function runAnalysis(params: AnalysisParams): Promise<void> {
       starQualityRecent: scoreResult.starQuality?.recent ?? null,
       starQualityHistorical: scoreResult.starQuality?.historical ?? null,
       starBurstDetected: scoreResult.starQuality?.burstDetected ? 1 : 0,
+      hnData,
     });
 
     const hasEnoughData = scoreResult.excludedCategories.length <

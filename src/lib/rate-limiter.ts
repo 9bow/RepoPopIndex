@@ -45,16 +45,26 @@ export async function checkRateLimit(source: string): Promise<boolean> {
   return current <= config.maxRequests;
 }
 
+/**
+ * Throws if the rate limit for `source` is exceeded.
+ *
+ * Serverless functions (Vercel/Inngest) have a hard execution timeout of
+ * ~30 s, so the previous strategy of sleeping until the rolling window resets
+ * (up to 3600 s) was guaranteed to timeout before the wait completed.
+ * Fast-failing lets the Inngest retry scheduler reschedule the function after
+ * an appropriate backoff instead.
+ */
 export async function waitForRateLimit(source: string): Promise<void> {
   const allowed = await checkRateLimit(source);
   if (allowed) return;
 
   const config = RATE_LIMITS[source];
-  if (!config) return;
-
   const key = `rpi:rate:${source}`;
   const ttl = await redis.ttl(key);
-  const waitMs = Math.max(1000, ttl * 1000);
 
-  await new Promise((resolve) => setTimeout(resolve, waitMs));
+  throw new Error(
+    `Rate limit exceeded for "${source}". ` +
+    `Window resets in ${ttl > 0 ? `${ttl}s` : "unknown time"}. ` +
+    `Limit: ${config?.maxRequests ?? "?"} req / ${config?.windowSeconds ?? "?"}s`
+  );
 }

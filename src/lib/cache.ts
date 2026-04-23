@@ -26,5 +26,7 @@ export function progressCacheKey(analysisId: string): string {
   return `rpi:progress:${analysisId}`;
 }
 
-export const REPORT_TTL = 3600;
+// Completed reports are immutable — score and metrics never change after
+// analysis finishes. 24 h is safe and cuts unnecessary DB re-reads.
+export const REPORT_TTL = 86_400;
 export const PROGRESS_TTL = 600;
