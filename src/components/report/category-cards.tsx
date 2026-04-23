@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/contexts/locale-context";
+import { MetricName } from "@/components/metric-name";
 import type { CategoryScore } from "@/lib/types";
 
 function barColor(score: number): string {
@@ -66,9 +67,9 @@ export function CategoryCards({
                 .map(([name, m]) => (
                   <div
                     key={name}
-                    className="flex justify-between text-xs text-muted-foreground"
+                    className="flex justify-between gap-2 text-xs text-muted-foreground"
                   >
-                    <span>{name.replace(/_/g, " ")}</span>
+                    <MetricName metricKey={name} />
                     <span className="font-mono">
                       {typeof m.raw === "number" ? m.raw.toLocaleString() : "N/A"}
                     </span>

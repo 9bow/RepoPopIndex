@@ -15,6 +15,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useLocale } from "@/contexts/locale-context";
+import { MetricName } from "@/components/metric-name";
 import type { CategoryScore } from "@/lib/types";
 
 export function MetricsTable({
@@ -76,8 +77,8 @@ export function MetricsTable({
               <TableBody>
                 {Object.entries(cat.metrics).map(([name, m]) => (
                   <TableRow key={name}>
-                    <TableCell className="text-sm">
-                      {name.replace(/_/g, " ")}
+                    <TableCell className="text-sm max-w-[14rem]">
+                      <MetricName metricKey={name} />
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm">
                       {m.raw !== null ? m.raw.toLocaleString() : "N/A"}
