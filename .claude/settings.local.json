@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mv tmpapp/.git tmpapp/.gitignore tmpapp/.next tmpapp/eslint.config.mjs tmpapp/next-env.d.ts tmpapp/next.config.ts tmpapp/node_modules tmpapp/package.json tmpapp/pnpm-lock.yaml tmpapp/postcss.config.mjs tmpapp/public tmpapp/README.md tmpapp/src tmpapp/tsconfig.json .)",
+      "Bash(rm -rf tmpapp)"
+    ]
+  }
+}
