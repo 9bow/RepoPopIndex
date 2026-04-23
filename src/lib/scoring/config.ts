@@ -15,7 +15,17 @@ export interface CategoryConfig {
   metricKeys: string[];
 }
 
-export const RECENCY_FACTOR = 0.3;
+/**
+ * Multiplier for `cumulative: true` metrics after log/linear normalization.
+ * (Non-cumulative, period-based metrics use 1.0.)
+ *
+ * Previously 0.3 matched PLAN’s “all-time stock vs flow” story, but it capped
+ * entire categories: e.g. Popularity (mostly cumulative weights) could not
+ * exceed ~44/100 even with perfect per-metric scores, which made top-tier
+ * repos look unjustly “moderate.” 0.75 keeps a discount vs flow metrics while
+ * allowing strong cumulative signals (stars, adoption, etc.) to score fairly.
+ */
+export const RECENCY_FACTOR = 0.75;
 
 export const GITHUB_METRICS: MetricConfig[] = [
   // G1: Fundamentals (from github-graphql)
