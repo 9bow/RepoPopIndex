@@ -75,6 +75,7 @@ const en = {
     normalized: "Normalized",
     weight: "Weight",
     contribution: "Contribution",
+    openSource: "Open the source data on the provider",
   },
   starQuality: {
     title: "Star quality assessment",
@@ -177,6 +178,7 @@ const ko: typeof en = {
     normalized: "정규화",
     weight: "가중",
     contribution: "기여도",
+    openSource: "원본 데이터를 제공처에서 열기",
   },
   starQuality: {
     title: "스타 품질 평가",

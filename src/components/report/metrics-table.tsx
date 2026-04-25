@@ -16,12 +16,21 @@ import {
 } from "@/components/ui/collapsible";
 import { useLocale } from "@/contexts/locale-context";
 import { MetricName } from "@/components/metric-name";
-import type { CategoryScore } from "@/lib/types";
+import { getMetricDrillDownUrl } from "@/lib/metric-links";
+import type { CategoryScore, Period, Platform } from "@/lib/types";
 
 export function MetricsTable({
   categoryScores,
+  platform,
+  owner,
+  repo,
+  period,
 }: {
   categoryScores: Record<string, CategoryScore>;
+  platform: Platform;
+  owner: string;
+  repo: string;
+  period: Period;
 }) {
   const { d } = useLocale();
   const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
@@ -75,10 +84,25 @@ export function MetricsTable({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {Object.entries(cat.metrics).map(([name, m]) => (
+                {Object.entries(cat.metrics).map(([name, m]) => {
+                  const drillUrl = getMetricDrillDownUrl(name, platform, owner, repo, period);
+                  return (
                   <TableRow key={name}>
                     <TableCell className="text-sm max-w-[14rem]">
-                      <MetricName metricKey={name} />
+                      {drillUrl ? (
+                        <a
+                          href={drillUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                          title={d.metricsTable.openSource}
+                        >
+                          <MetricName metricKey={name} />
+                          <span aria-hidden className="ml-1 text-xs text-muted-foreground">↗</span>
+                        </a>
+                      ) : (
+                        <MetricName metricKey={name} />
+                      )}
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm">
                       {m.raw !== null ? m.raw.toLocaleString() : "N/A"}
@@ -95,7 +119,8 @@ export function MetricsTable({
                         : "—"}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </CollapsibleContent>

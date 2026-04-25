@@ -124,7 +124,18 @@ export default function ReportPage() {
             {report.platform === "github" ? "GitHub" : "HuggingFace"}
           </Badge>
           <h1 className="text-2xl font-bold">
-            {report.owner}/{report.repo}
+            <a
+              href={
+                report.platform === "github"
+                  ? `https://github.com/${report.owner}/${report.repo}`
+                  : `https://huggingface.co/${report.owner}/${report.repo}`
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline"
+            >
+              {report.owner}/{report.repo}
+            </a>
           </h1>
         </div>
         {report.status === "partial" && (
@@ -162,7 +173,13 @@ export default function ReportPage() {
 
       <section>
         <h2 className="mb-4 text-lg font-semibold">{d.report.detailedMetrics}</h2>
-        <MetricsTable categoryScores={report.categoryScores} />
+        <MetricsTable
+          categoryScores={report.categoryScores}
+          platform={report.platform}
+          owner={report.owner}
+          repo={report.repo}
+          period={report.period}
+        />
       </section>
 
       <footer className="border-t pt-6 text-sm text-muted-foreground space-y-2">
