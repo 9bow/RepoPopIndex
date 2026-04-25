@@ -296,6 +296,8 @@ query($owner:String!, $name:String!) {
 
 ### 2.3 Social Buzz Metrics
 
+> **Superseded for collector implementation by `.omc/plans/social-collectors-darklaunch.md` (v3).** Reddit / SO / YouTube are now dark-launched (collectors persist to `rpi:social:metrics:{analysisId}` Redis blob; do not affect UQS or report API surface). Section 10.4 designs are retained as the activation reference.
+
 #### v1 Scope: Hacker News Only
 
 For v1, social buzz is sourced exclusively from Hacker News. Reddit, Stack Overflow, and YouTube collectors are designed but deferred to Phase 8 (post-launch) due to API fragility and low individual weight. See Section 10.4 for deferred platform designs.
@@ -1222,6 +1224,8 @@ Social_normalized = log(1 + Social_raw) / log(1 + 50000)
 ```
 
 ### 10.4 Deferred Platforms (Phase 8)
+
+> **Superseded for collector scaffolding by `.omc/plans/social-collectors-darklaunch.md` (v3).** Reddit / SO / YouTube collectors are implemented and dark-launched as of this iteration. Activation (registering metric keys in `*_METRICS`, surfacing in UI, assigning weights) remains future work. Optional credentials documented in `README.md → Optional Social Collector Credentials`.
 
 The following designs are prepared but not implemented in v1.
 

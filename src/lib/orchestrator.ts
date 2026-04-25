@@ -1,6 +1,7 @@
 import { cacheSet, progressCacheKey, PROGRESS_TTL, reportCacheKey, REPORT_TTL } from "./cache";
 import { dequeue } from "./queue";
 import { getAnalysis, updateAnalysisStatus } from "./analysis-store";
+import { writeSocialMetrics } from "./social-metrics-store";
 import type { AnalysisReport, AnalysisStatus, CollectorResult, Period, Platform, ProgressUpdate } from "./types";
 
 interface AnalysisParams {
@@ -96,14 +97,47 @@ export async function runAnalysis(params: AnalysisParams): Promise<void> {
       await updateStatus(analysisId, "collecting", 55, "HuggingFace done");
     }
 
-    const { collectHackerNews } = await import("./collectors/hackernews");
-    const hnResult = await withTimeout(
-      collectHackerNews(platform, owner, repo, period),
-      COLLECTOR_TIMEOUT
-    ).catch(() => null);
+    // Social buzz: run HN (existing) in parallel with the dark-launched
+    // Reddit/SO/YouTube group. New collectors persist a separate Redis blob
+    // (rpi:social:metrics:{analysisId}); their metric keys are not registered
+    // in *_METRICS so computeScores ignores them — the report API surface is
+    // unchanged during dark-launch.
+    const [
+      { collectHackerNews },
+      { collectReddit },
+      { collectStackOverflow },
+      { collectYouTube },
+    ] = await Promise.all([
+      import("./collectors/hackernews"),
+      import("./collectors/reddit"),
+      import("./collectors/stackoverflow"),
+      import("./collectors/youtube"),
+    ]);
 
-    if (hnResult) collectorResults.push(hnResult);
-    await updateStatus(analysisId, "collecting", 65, "Social buzz done");
+    const socialSettled = await Promise.allSettled([
+      withTimeout(collectHackerNews(platform, owner, repo, period), COLLECTOR_TIMEOUT),
+      withTimeout(collectReddit(platform, owner, repo, period), COLLECTOR_TIMEOUT),
+      withTimeout(collectStackOverflow(platform, owner, repo, period), COLLECTOR_TIMEOUT),
+      withTimeout(collectYouTube(platform, owner, repo, period), COLLECTOR_TIMEOUT),
+    ]);
+
+    const socialResults: CollectorResult[] = [];
+    for (const s of socialSettled) {
+      if (s.status === "fulfilled") {
+        collectorResults.push(s.value);
+        socialResults.push(s.value);
+      }
+    }
+
+    // Dark-launch persistence: write Reddit/SO/YouTube metrics to a
+    // dedicated Redis blob. Failure here must not abort the analysis.
+    try {
+      await writeSocialMetrics(analysisId, socialResults);
+    } catch {
+      /* dark-launch best-effort */
+    }
+
+    await updateStatus(analysisId, "collecting", 70, "Social buzz done");
 
     await updateStatus(analysisId, "scoring", 80, "Computing scores...");
 
