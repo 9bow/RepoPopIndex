@@ -29,12 +29,14 @@ export const RECENCY_FACTOR = 0.75;
 
 export const GITHUB_METRICS: MetricConfig[] = [
   // G1: Fundamentals (from github-graphql)
-  { key: "stars", category: "G1", maxI: 50000, weight: 3, cumulative: true },
-  { key: "forks", category: "G1", maxI: 15000, weight: 1, cumulative: true },
-  { key: "watchers", category: "G1", maxI: 5000, weight: 1, cumulative: true },
+  // maxI calibrated so top-tier OSS (linux/k8s/vscode/react with 100k–400k stars)
+  // saturate gracefully near 1.0 instead of all collapsing to the same ceiling.
+  { key: "stars", category: "G1", maxI: 200000, weight: 3, cumulative: true },
+  { key: "forks", category: "G1", maxI: 50000, weight: 1, cumulative: true },
+  { key: "watchers", category: "G1", maxI: 10000, weight: 1, cumulative: true },
   // G2: Activity (from github-rest + github-graphql)
   { key: "G2.4", category: "G2", maxI: 500, weight: 3, cumulative: false },
-  { key: "G2.5", category: "G2", maxI: 500, weight: 2, cumulative: false },
+  { key: "G2.5", category: "G2", maxI: 2000, weight: 2, cumulative: false },
   { key: "G2.2", category: "G2", maxI: 1.0, weight: 2, cumulative: false, linear: true },
   { key: "G2.3_additions", category: "G2", maxI: 50000, weight: 1, cumulative: false },
   { key: "G2.6", category: "G2", maxI: 3.0, weight: 2, cumulative: false, linear: true },
@@ -54,11 +56,12 @@ export const GITHUB_METRICS: MetricConfig[] = [
   { key: "G5.3", category: "G5", maxI: 1000000, weight: 2, cumulative: false },
   { key: "G5.4", category: "G5", maxI: 200, weight: 0, cumulative: false },
   // G6: Dependency Adoption (from github-scraper)
-  { key: "G6.1", category: "G6", maxI: 100000, weight: 3, cumulative: true },
+  // npm-scale ecosystems have 10M+ dependents (express ~60M); 100k saturated everyone.
+  { key: "G6.1", category: "G6", maxI: 5000000, weight: 3, cumulative: true },
   // G7: Community Health (from github-rest)
   { key: "G7.1", category: "G7", maxI: 100, weight: 1, cumulative: true, linear: true },
   // G8: Star Quality (from star-quality)
-  { key: "G8.1", category: "G8", maxI: 50000, weight: 3, cumulative: true },
+  { key: "G8.1", category: "G8", maxI: 200000, weight: 3, cumulative: true },
   { key: "G8.2", category: "G8", maxI: 100, weight: 2, cumulative: false },
   // S1: Social Buzz (from hackernews)
   { key: "story_count", category: "S1", maxI: 50, weight: 1, cumulative: false },

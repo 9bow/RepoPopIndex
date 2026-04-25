@@ -1,7 +1,15 @@
 import type { CategoryScore, CollectorResult, MetricValue } from "@/lib/types";
 import type { Platform } from "@/lib/types";
 import { GITHUB_CATEGORIES, GITHUB_METRICS, HF_CATEGORIES, HF_METRICS, RECENCY_FACTOR } from "./config";
-import { applyRecencyFactor, normalizeMetric } from "./normalizer";
+import { applyRecencyFactor, metricCeiling, normalizeMetric } from "./normalizer";
+
+/**
+ * Minimum share of a category's countable metrics that must have data before
+ * the category is included in the composite. Lowered from 0.5 so that one
+ * upstream rate-limit (e.g. GitHub Search) does not silently drop a whole
+ * category and cause the composite to under-report.
+ */
+const MIN_AVAILABLE_RATIO = 0.3;
 
 export function computeCategoryScores(
   metrics: CollectorResult[],
@@ -23,7 +31,7 @@ export function computeCategoryScores(
   for (const category of categoryConfigs) {
     const metricValues: Record<string, MetricValue> = {};
     let weightedSum = 0;
-    let totalWeight = 0;
+    let availableCeiling = 0;
     let availableCount = 0;
 
     for (const key of category.metricKeys) {
@@ -49,7 +57,7 @@ export function computeCategoryScores(
 
       if (rawValue !== null && normalized !== null && config.weight > 0) {
         weightedSum += recencyAdjusted! * config.weight;
-        totalWeight += config.weight;
+        availableCeiling += metricCeiling(config, RECENCY_FACTOR) * config.weight;
         availableCount++;
       }
     }
@@ -59,10 +67,13 @@ export function computeCategoryScores(
       return config && config.weight > 0;
     });
     const countableTotal = countableKeys.length;
-    const insufficient = countableTotal > 0 && availableCount < countableTotal * 0.5;
+    const insufficient = countableTotal > 0 && availableCount < countableTotal * MIN_AVAILABLE_RATIO;
 
-    const score = !insufficient && totalWeight > 0
-      ? 100 * weightedSum / totalWeight
+    // Rescale by the maximum theoretically achievable score on the metrics we
+    // actually have data for. Without this, categories dominated by cumulative
+    // metrics (recency-factored to 0.75) cap at 75/100 even with perfect data.
+    const score = !insufficient && availableCeiling > 0
+      ? 100 * (weightedSum / availableCeiling)
       : 0;
 
     result[category.id] = {

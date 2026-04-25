@@ -30,3 +30,13 @@ export function applyRecencyFactor(
   }
   return normalized;
 }
+
+/**
+ * Returns the maximum value `applyRecencyFactor` can produce for a given
+ * metric (i.e. when `normalized === 1`). Used to rescale category scores so
+ * that hitting every metric's ceiling yields ~100, which prevents the
+ * cumulative-recency factor from artificially capping perfectly-active repos.
+ */
+export function metricCeiling(config: MetricConfig, recencyFactor: number = RECENCY_FACTOR): number {
+  return config.cumulative ? recencyFactor : 1;
+}
