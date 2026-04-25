@@ -126,6 +126,7 @@ const en = {
   nav: {
     home: "RepoPopIndex",
     methodology: "Methodology",
+    about: "About",
   },
   recentReports: {
     title: "Recent Reports",
@@ -152,6 +153,22 @@ const en = {
     partialTitle: "Partial results",
     partialBody:
       "When one or more data sources fail or are rate-limited, the report is marked as partial. The missing sources are listed and their weights are redistributed proportionally so the score remains meaningful. A backup of the most recent successful collection is used when available (reason: served_from_backup). Partial reports are clearly flagged in the UI.",
+  },
+  about: {
+    title: "About RepoPopIndex",
+    intro:
+      "RepoPopIndex is an open-source project that quantifies how actively an open-source repository is actually being used — not how popular it looks at a glance. The goal is to surface signals that survive star-farming, hype cycles, and abandonment, so contributors and adopters can make informed decisions.",
+    missionTitle: "Why this exists",
+    missionBody:
+      "Star counts are easy to inflate and slow to decay. They reward attention, not adoption. We score across activity, community, downstream integration, release cadence, social discussion, and project health so a repository's real footprint shows through. A polished but inactive project should not look identical to one that ships every week.",
+    dataSourcesTitle: "Data sources",
+    dataSourcesBody:
+      "GitHub REST and GraphQL APIs, the HuggingFace Hub API, Hacker News (Algolia), Reddit, Stack Exchange (Stack Overflow), and YouTube Data API. Every signal is fetched on demand, log-normalized, and cached in Upstash Redis. There is no persistent database — analyses are reproducible from public APIs.",
+    openSourceTitle: "Open source",
+    openSourceBody:
+      "The code is MIT licensed and lives on GitHub. Issues, PRs, and discussions about scoring, weights, or new signal sources are welcome. The methodology page documents how the score is computed today.",
+    contactTitle: "Repository",
+    contactBody: "github.com/9bow/RepoPopIndex",
   },
 };
 
@@ -279,6 +296,7 @@ const ko: typeof en = {
   nav: {
     home: "RepoPopIndex",
     methodology: "산출 방식",
+    about: "소개",
   },
   recentReports: {
     title: "최근 분석 결과",
@@ -305,6 +323,22 @@ const ko: typeof en = {
     partialTitle: "일부 결과 처리",
     partialBody:
       "하나 이상의 데이터 소스가 실패하거나 요청 제한에 걸린 경우 리포트는 '일부 결과'로 표시됩니다. 누락된 소스 목록이 표시되며 해당 가중치는 나머지 소스에 비례 재분배되어 점수의 의미가 유지됩니다. 가장 최근의 성공적인 수집 데이터가 있으면 백업으로 사용됩니다(reason: served_from_backup). 일부 결과 리포트는 UI에서 명확히 표시됩니다.",
+  },
+  about: {
+    title: "RepoPopIndex 소개",
+    intro:
+      "RepoPopIndex는 오픈소스 저장소가 겉보기에 얼마나 인기 있어 보이는지가 아니라 실제로 얼마나 활발하게 사용되고 있는지를 정량화하는 오픈소스 프로젝트입니다. 별점 어뷰징·일시적 화제성·방치 상태에 흔들리지 않는 신호를 드러내어 기여자와 도입자가 정보에 기반한 판단을 할 수 있도록 돕습니다.",
+    missionTitle: "왜 만들었는가",
+    missionBody:
+      "별 수는 부풀리기 쉽고 가라앉히기 어렵습니다. 주목도는 측정해도 실제 도입은 측정하지 못합니다. 본 프로젝트는 활동성·커뮤니티·다운스트림 통합·릴리스 주기·소셜 논의·프로젝트 건전성을 함께 평가해 저장소의 실질 footprint가 드러나도록 합니다. 잘 꾸며졌지만 멈춰있는 프로젝트와 매주 출시되는 프로젝트가 같은 점수를 받으면 안 됩니다.",
+    dataSourcesTitle: "데이터 소스",
+    dataSourcesBody:
+      "GitHub REST·GraphQL API, HuggingFace Hub API, Hacker News(Algolia), Reddit, Stack Exchange(Stack Overflow), YouTube Data API를 사용합니다. 모든 신호는 요청 시점에 수집되어 로그 정규화 후 Upstash Redis에 캐시됩니다. 영구 데이터베이스는 사용하지 않으며, 모든 분석은 공개 API만으로 재현 가능합니다.",
+    openSourceTitle: "오픈소스",
+    openSourceBody:
+      "코드는 MIT 라이선스로 GitHub에 공개되어 있습니다. 점수 산출·가중치·새로운 신호 소스에 대한 이슈·PR·토론을 환영합니다. 현재 점수가 어떻게 계산되는지는 산출 방식 페이지에 정리되어 있습니다.",
+    contactTitle: "저장소",
+    contactBody: "github.com/9bow/RepoPopIndex",
   },
 };
 

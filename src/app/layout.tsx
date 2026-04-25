@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import "./globals.css";
 import { LocaleProvider } from "@/contexts/locale-context";
 import { TopNav } from "@/components/layout/TopNav";
+import { BottomLinks } from "@/components/layout/BottomLinks";
 import { TooltipProvider } from "./tooltip-provider";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
@@ -66,6 +67,7 @@ export default async function RootLayout({
           <TooltipProvider>
             <TopNav />
             {children}
+            <BottomLinks />
           </TooltipProvider>
         </LocaleProvider>
       </body>

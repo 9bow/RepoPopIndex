@@ -16,13 +16,6 @@ export function TopNav() {
         {d.nav.home}
       </Link>
 
-      <Link
-        href="/methodology"
-        className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        {d.nav.methodology}
-      </Link>
-
       <div className="text-xs sm:text-sm">
         <LanguageSwitcher />
       </div>
