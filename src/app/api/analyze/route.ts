@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod/v4";
 import { parseRepoUrl } from "@/lib/parsers/url-parser";
-import { db } from "@/db";
-import { analyses } from "@/db/schema";
+import { createAnalysis } from "@/lib/analysis-store";
 import { inngest } from "@/inngest/client";
 import { canEnqueue, enqueue, getQueueDepth, MAX_QUEUE_DEPTH } from "@/lib/queue";
 
@@ -33,24 +32,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const [analysis] = await db
-      .insert(analyses)
-      .values({
-        platform: repo.platform,
-        owner: repo.owner,
-        repo: repo.repo,
-        period: parsed.period,
-        status: "queued",
-        inputUrl: parsed.url,
-      })
-      .returning();
+    const id = await createAnalysis({
+      platform: repo.platform,
+      owner: repo.owner,
+      repo: repo.repo,
+      period: parsed.period,
+      inputUrl: parsed.url,
+    });
 
-    await enqueue(analysis.id);
+    await enqueue(id);
 
     await inngest.send({
       name: "analysis/run",
       data: {
-        analysisId: analysis.id,
+        analysisId: id,
         platform: repo.platform,
         owner: repo.owner,
         repo: repo.repo,
@@ -59,7 +54,7 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({
-      id: analysis.id,
+      id,
       status: "queued",
     });
   } catch (error) {

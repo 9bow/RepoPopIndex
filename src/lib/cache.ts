@@ -27,6 +27,7 @@ export function progressCacheKey(analysisId: string): string {
 }
 
 // Completed reports are immutable — score and metrics never change after
-// analysis finishes. 24 h is safe and cuts unnecessary DB re-reads.
-export const REPORT_TTL = 86_400;
+// analysis finishes. With Redis-only storage they are the canonical record,
+// so we keep them for 30 days to match analysis record retention.
+export const REPORT_TTL = 30 * 24 * 3600;
 export const PROGRESS_TTL = 600;

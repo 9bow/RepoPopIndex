@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cacheGet, progressCacheKey } from "@/lib/cache";
 import { getQueuePosition } from "@/lib/queue";
-import { db } from "@/db";
-import { analyses } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { getAnalysis } from "@/lib/analysis-store";
 import type { ProgressUpdate } from "@/lib/types";
 
 export async function GET(
@@ -26,11 +24,7 @@ export async function GET(
     return NextResponse.json(progress);
   }
 
-  const [analysis] = await db
-    .select()
-    .from(analyses)
-    .where(eq(analyses.id, id))
-    .limit(1);
+  const analysis = await getAnalysis(id);
 
   if (!analysis) {
     return NextResponse.json({ error: "Analysis not found" }, { status: 404 });

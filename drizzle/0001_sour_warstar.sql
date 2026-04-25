@@ -1,1 +1,0 @@
-ALTER TABLE "scores" ADD COLUMN "hn_data" jsonb;

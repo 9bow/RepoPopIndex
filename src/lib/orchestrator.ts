@@ -1,9 +1,7 @@
-import { db } from "@/db";
-import { analyses, rawMetrics, scores } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { cacheSet, progressCacheKey, PROGRESS_TTL } from "./cache";
+import { cacheSet, progressCacheKey, PROGRESS_TTL, reportCacheKey, REPORT_TTL } from "./cache";
 import { dequeue } from "./queue";
-import type { AnalysisStatus, CollectorResult, Period, Platform, ProgressUpdate } from "./types";
+import { getAnalysis, updateAnalysisStatus } from "./analysis-store";
+import type { AnalysisReport, AnalysisStatus, CollectorResult, Period, Platform, ProgressUpdate } from "./types";
 
 interface AnalysisParams {
   analysisId: string;
@@ -19,10 +17,7 @@ async function updateStatus(
   progress: number,
   stage: string
 ): Promise<void> {
-  await db
-    .update(analyses)
-    .set({ status })
-    .where(eq(analyses.id, analysisId));
+  await updateAnalysisStatus(analysisId, { status });
 
   const update: ProgressUpdate = { status, progress, stage };
   await cacheSet(progressCacheKey(analysisId), update, PROGRESS_TTL);
@@ -110,23 +105,6 @@ export async function runAnalysis(params: AnalysisParams): Promise<void> {
     if (hnResult) collectorResults.push(hnResult);
     await updateStatus(analysisId, "collecting", 65, "Social buzz done");
 
-    await updateStatus(analysisId, "collecting", 70, "Storing raw metrics...");
-
-    const metricsToInsert = collectorResults.flatMap((cr) =>
-      cr.metrics.map((m) => ({
-        analysisId,
-        source: cr.source,
-        category: m.category,
-        metricKey: m.metricKey,
-        rawValue: m.rawValue,
-        rawJson: m.rawJson ?? null,
-      }))
-    );
-
-    if (metricsToInsert.length > 0) {
-      await db.insert(rawMetrics).values(metricsToInsert);
-    }
-
     await updateStatus(analysisId, "scoring", 80, "Computing scores...");
 
     const { computeScores } = await import("./scoring/composite-score");
@@ -135,7 +113,7 @@ export async function runAnalysis(params: AnalysisParams): Promise<void> {
     await updateStatus(analysisId, "scoring", 90, "Storing scores...");
 
     // Extract HN display data from collector results so the report API can
-    // read it directly from scores without querying raw_metrics.
+    // read it directly from the cached report.
     const hnCollector = collectorResults.find((cr) => cr.source === "hackernews");
     const hnMetrics = hnCollector?.metrics ?? [];
     const hnData = hnMetrics.length > 0 ? {
@@ -148,19 +126,6 @@ export async function runAnalysis(params: AnalysisParams): Promise<void> {
       engagement: hnMetrics.find((m) => m.metricKey === "engagement")?.rawValue ?? 0,
     } : null;
 
-    await db.insert(scores).values({
-      analysisId,
-      compositeScore: scoreResult.compositeScore,
-      categoryScores: scoreResult.categoryScores,
-      metricScores: scoreResult.metricScores,
-      excludedCategories: scoreResult.excludedCategories,
-      starQualityFactor: scoreResult.starQuality?.factor ?? null,
-      starQualityRecent: scoreResult.starQuality?.recent ?? null,
-      starQualityHistorical: scoreResult.starQuality?.historical ?? null,
-      starBurstDetected: scoreResult.starQuality?.burstDetected ? 1 : 0,
-      hnData,
-    });
-
     const hasEnoughData = scoreResult.excludedCategories.length <
       Object.keys(scoreResult.categoryScores).length;
     const finalStatus: AnalysisStatus = hasEnoughData ? "complete" : "partial";
@@ -168,18 +133,41 @@ export async function runAnalysis(params: AnalysisParams): Promise<void> {
     const hasAnyFailed = collectorResults.length === 0;
     const effectiveStatus: AnalysisStatus = hasAnyFailed ? "failed" : finalStatus;
 
-    await db
-      .update(analyses)
-      .set({ status: effectiveStatus, completedAt: new Date() })
-      .where(eq(analyses.id, analysisId));
+    const completedAt = new Date().toISOString();
+    const existing = await getAnalysis(analysisId);
+
+    const report: AnalysisReport = {
+      id: analysisId,
+      platform,
+      owner,
+      repo,
+      period,
+      status: effectiveStatus,
+      compositeScore: scoreResult.compositeScore,
+      categoryScores: scoreResult.categoryScores,
+      excludedCategories: scoreResult.excludedCategories,
+      starQuality: scoreResult.starQuality,
+      socialBuzz: { hn: hnData },
+      createdAt: existing?.createdAt ?? completedAt,
+      completedAt,
+    };
+
+    await cacheSet(
+      reportCacheKey(platform, owner, repo, period),
+      report,
+      REPORT_TTL
+    );
+
+    await updateAnalysisStatus(analysisId, { status: effectiveStatus, completedAt });
 
     await updateStatus(analysisId, effectiveStatus, 100, effectiveStatus);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    await db
-      .update(analyses)
-      .set({ status: "failed", error: message, completedAt: new Date() })
-      .where(eq(analyses.id, analysisId));
+    await updateAnalysisStatus(analysisId, {
+      status: "failed",
+      error: message,
+      completedAt: new Date().toISOString(),
+    });
     await updateStatus(analysisId, "failed", 0, message);
   } finally {
     clearTimeout(totalTimer);

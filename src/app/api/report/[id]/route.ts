@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
-import { analyses, scores } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { cacheGet, cacheSet, reportCacheKey, REPORT_TTL } from "@/lib/cache";
+import { cacheGet, reportCacheKey } from "@/lib/cache";
+import { getAnalysis } from "@/lib/analysis-store";
 import type { AnalysisReport } from "@/lib/types";
 
 export async function GET(
@@ -11,11 +9,7 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  const [analysis] = await db
-    .select()
-    .from(analyses)
-    .where(eq(analyses.id, id))
-    .limit(1);
+  const analysis = await getAnalysis(id);
 
   if (!analysis) {
     return NextResponse.json({ error: "Analysis not found" }, { status: 404 });
@@ -35,49 +29,9 @@ export async function GET(
     analysis.period
   );
   const cached = await cacheGet<AnalysisReport>(cacheKey);
-  if (cached) {
-    return NextResponse.json(cached);
+  if (!cached) {
+    return NextResponse.json({ error: "Report not found" }, { status: 404 });
   }
 
-  const [score] = await db
-    .select()
-    .from(scores)
-    .where(eq(scores.analysisId, id))
-    .limit(1);
-
-  const hnData = (score?.hnData as {
-    storyCount: number;
-    totalPoints: number;
-    totalComments: number;
-    topStory: { title: string; url: string; points: number } | null;
-    engagement: number;
-  } | null) ?? null;
-
-  const report: AnalysisReport = {
-    id: analysis.id,
-    platform: analysis.platform,
-    owner: analysis.owner,
-    repo: analysis.repo,
-    period: analysis.period,
-    status: analysis.status,
-    compositeScore: score?.compositeScore ?? 0,
-    categoryScores: (score?.categoryScores as Record<string, never>) ?? {},
-    excludedCategories: (score?.excludedCategories as string[]) ?? [],
-    starQuality:
-      score && score.starQualityFactor !== null && score.starQualityFactor !== undefined
-        ? {
-            factor: score.starQualityFactor,
-            recent: score.starQualityRecent ?? score.starQualityFactor,
-            historical: score.starQualityHistorical ?? score.starQualityFactor,
-            burstDetected: (score.starBurstDetected ?? 0) === 1,
-          }
-        : null,
-    socialBuzz: { hn: hnData },
-    createdAt: analysis.createdAt.toISOString(),
-    completedAt: analysis.completedAt?.toISOString() ?? null,
-  };
-
-  await cacheSet(cacheKey, report, REPORT_TTL);
-
-  return NextResponse.json(report);
+  return NextResponse.json(cached);
 }
