@@ -13,7 +13,7 @@ interface StarQuality {
 export function StarQualityCard({ starQuality }: { starQuality: StarQuality }) {
   const { d } = useLocale();
   return (
-    <Card>
+    <Card className="border-border/70">
       <CardHeader>
         <CardTitle className="text-sm font-medium">
           {d.starQuality.title}
@@ -21,35 +21,27 @@ export function StarQualityCard({ starQuality }: { starQuality: StarQuality }) {
       </CardHeader>
       <CardContent className="space-y-4">
         {starQuality.burstDetected && (
-          <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-700 dark:bg-red-950 dark:text-red-200">
+          <div className="rounded-xl border border-destructive/40 bg-destructive/8 px-4 py-3 text-sm text-destructive dark:bg-destructive/15">
             {d.starQuality.burst}
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-4 text-center">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 text-center">
           <div>
-            <p className="text-2xl font-bold">
+            <p className="text-xl sm:text-2xl font-semibold font-display tabular-nums">
               {(starQuality.factor * 100).toFixed(0)}%
             </p>
-            <p className="text-xs text-muted-foreground">{d.starQuality.factor}</p>
+            <p className="text-xs text-muted-foreground mt-1">{d.starQuality.factor}</p>
           </div>
           <div>
-            <p className="text-2xl font-bold">
+            <p className="text-xl sm:text-2xl font-semibold font-display tabular-nums">
               {(starQuality.recent * 100).toFixed(0)}%
             </p>
-            <p className="text-xs text-muted-foreground">{d.starQuality.recentUqs}</p>
-          </div>
-          <div>
-            <p className="text-2xl font-bold">
-              {(starQuality.historical * 100).toFixed(0)}%
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {d.starQuality.historicalUqs}
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">{d.starQuality.recentUqs}</p>
           </div>
         </div>
 
-        <p className="text-xs text-muted-foreground">{d.starQuality.footnote}</p>
+        <p className="text-xs text-muted-foreground leading-relaxed">{d.starQuality.footnote}</p>
       </CardContent>
     </Card>
   );

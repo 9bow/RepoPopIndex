@@ -30,25 +30,26 @@ export function CategoryRadar({ categoryScores, excludedCategories }: Props) {
   }
 
   return (
-    <div className="h-72 w-full max-w-lg mx-auto">
+    <div className="h-64 w-full max-w-lg mx-auto sm:h-72">
       <ResponsiveContainer width="100%" height="100%">
         <RadarChart data={data}>
-          <PolarGrid stroke="hsl(var(--border))" />
+          <PolarGrid stroke="var(--border)" />
           <PolarAngleAxis
             dataKey="category"
-            tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+            tickFormatter={(value: string) => value.length > 8 ? value.slice(0, 7) + "…" : value}
           />
           <PolarRadiusAxis
             angle={90}
             domain={[0, 100]}
-            tick={{ fontSize: 10 }}
+            tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
           />
           <Radar
             name={d.categoryRadar.seriesName}
             dataKey="score"
-            stroke="hsl(var(--primary))"
-            fill="hsl(var(--primary))"
-            fillOpacity={0.2}
+            stroke="var(--accent-vivid)"
+            fill="var(--accent-vivid)"
+            fillOpacity={0.18}
             strokeWidth={2}
           />
         </RadarChart>

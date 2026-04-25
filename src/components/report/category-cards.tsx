@@ -7,11 +7,11 @@ import { MetricName } from "@/components/metric-name";
 import type { CategoryScore } from "@/lib/types";
 
 function barColor(score: number): string {
-  if (score >= 80) return "bg-green-500";
-  if (score >= 60) return "bg-blue-500";
-  if (score >= 40) return "bg-yellow-500";
-  if (score >= 20) return "bg-orange-500";
-  return "bg-red-500";
+  if (score >= 80) return "bg-score-excellent";
+  if (score >= 60) return "bg-score-good";
+  if (score >= 40) return "bg-score-mid";
+  if (score >= 20) return "bg-score-low";
+  return "bg-score-poor";
 }
 
 export function CategoryCards({
@@ -31,9 +31,9 @@ export function CategoryCards({
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {entries.map(([key, cat]) => (
-        <Card key={key}>
+        <Card key={key} className="border-border/70 transition-shadow hover:shadow-md">
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-sm font-medium">
                 {cat.name || key}
               </CardTitle>
@@ -42,7 +42,7 @@ export function CategoryCards({
                   {d.categoryCards.insufficient}
                 </Badge>
               ) : (
-                <span className="text-lg font-bold">
+                <span className="text-lg font-semibold font-display tabular-nums">
                   {Math.round(cat.score)}
                 </span>
               )}
@@ -50,9 +50,9 @@ export function CategoryCards({
           </CardHeader>
           <CardContent>
             {!cat.insufficient && (
-              <div className="mb-3 h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-muted/70">
                 <div
-                  className={`h-full rounded-full transition-all ${barColor(cat.score)}`}
+                  className={`h-full rounded-full transition-[width] duration-700 ${barColor(cat.score)}`}
                   style={{ width: `${cat.score}%` }}
                 />
               </div>
@@ -70,7 +70,7 @@ export function CategoryCards({
                     className="flex justify-between gap-2 text-xs text-muted-foreground"
                   >
                     <MetricName metricKey={name} />
-                    <span className="font-mono">
+                    <span className="font-mono tabular-nums">
                       {typeof m.raw === "number" ? m.raw.toLocaleString() : "N/A"}
                     </span>
                   </div>

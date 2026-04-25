@@ -73,9 +73,9 @@ export default function ReportPage() {
 
   if (error) {
     return (
-      <main className="flex min-h-screen items-center justify-center px-4 pt-16">
+      <main className="flex min-h-screen items-center justify-center px-4 pt-16 sm:pt-20 pb-10">
         <div className="text-center space-y-4">
-          <h1 className="text-2xl font-bold text-destructive">
+          <h1 className="text-2xl font-bold font-display tracking-tight text-destructive">
             {d.report.failTitle}
           </h1>
           <p className="text-muted-foreground">{error}</p>
@@ -91,9 +91,9 @@ export default function ReportPage() {
     const pos = progress?.position;
     const waitSec = pos != null && pos > 0 ? pos * 15 : null;
     return (
-      <main className="flex min-h-screen items-center justify-center px-4 pt-16">
+      <main className="flex min-h-screen items-center justify-center px-4 pt-16 sm:pt-20 pb-10">
         <div className="w-full max-w-md space-y-6 text-center">
-          <h1 className="text-2xl font-bold">{d.report.analyzingTitle}</h1>
+          <h1 className="text-2xl font-bold font-display tracking-tight">{d.report.analyzingTitle}</h1>
           <Progress value={progress?.progress ?? 0} className="h-3" />
           <p className="text-sm text-muted-foreground">
             {progress?.stage
@@ -117,13 +117,13 @@ export default function ReportPage() {
   const dateLocale = locale === "ko" ? "ko-KR" : "en-US";
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 pt-20 space-y-8">
+    <main className="mx-auto w-full max-w-5xl px-4 sm:px-6 py-8 pt-16 sm:pt-20 space-y-8 sm:space-y-12">
       <header className="space-y-4">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <Badge variant="outline">
             {report.platform === "github" ? "GitHub" : "HuggingFace"}
           </Badge>
-          <h1 className="text-2xl font-bold">
+          <h1 className="text-xl sm:text-2xl font-semibold font-display tracking-tight break-all">
             <a
               href={
                 report.platform === "github"
@@ -139,7 +139,7 @@ export default function ReportPage() {
           </h1>
         </div>
         {report.status === "partial" && (
-          <div className="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 dark:border-yellow-700 dark:bg-yellow-950 dark:text-yellow-200">
+          <div className="rounded-xl border border-amber-300/60 bg-amber-50/80 px-4 py-3 text-sm leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-200">
             {d.report.partialBanner}
           </div>
         )}
@@ -147,7 +147,7 @@ export default function ReportPage() {
       </header>
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold">{d.report.categoryOverview}</h2>
+        <h2 className="mb-4 sm:mb-5 text-lg sm:text-xl font-semibold font-display tracking-tight">{d.report.categoryOverview}</h2>
         <CategoryRadar
           categoryScores={report.categoryScores}
           excludedCategories={report.excludedCategories}
@@ -155,24 +155,24 @@ export default function ReportPage() {
       </section>
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold">{d.report.categoryBreakdown}</h2>
+        <h2 className="mb-4 sm:mb-5 text-lg sm:text-xl font-semibold font-display tracking-tight">{d.report.categoryBreakdown}</h2>
         <CategoryCards categoryScores={report.categoryScores} />
       </section>
 
       {report.starQuality && (
         <section>
-          <h2 className="mb-4 text-lg font-semibold">{d.report.starQuality}</h2>
+          <h2 className="mb-4 sm:mb-5 text-lg sm:text-xl font-semibold font-display tracking-tight">{d.report.starQuality}</h2>
           <StarQualityCard starQuality={report.starQuality} />
         </section>
       )}
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold">{d.report.socialBuzz}</h2>
+        <h2 className="mb-4 sm:mb-5 text-lg sm:text-xl font-semibold font-display tracking-tight">{d.report.socialBuzz}</h2>
         <SocialBuzzCard socialBuzz={report.socialBuzz} />
       </section>
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold">{d.report.detailedMetrics}</h2>
+        <h2 className="mb-4 sm:mb-5 text-lg sm:text-xl font-semibold font-display tracking-tight">{d.report.detailedMetrics}</h2>
         <MetricsTable
           categoryScores={report.categoryScores}
           platform={report.platform}
@@ -182,12 +182,12 @@ export default function ReportPage() {
         />
       </section>
 
-      <footer className="border-t pt-6 text-sm text-muted-foreground space-y-2">
+      <footer className="mt-8 border-t pt-6 text-sm text-muted-foreground space-y-2">
         <p>{d.report.footerFormula}</p>
-        <p>
-          {d.report.analyzed}:{" "}
-          {new Date(report.createdAt).toLocaleString(dateLocale)} | {d.report.period}
-          : {periodLabel}
+        <p className="flex flex-wrap gap-x-2 gap-y-1">
+          <span>{d.report.analyzed}: {new Date(report.createdAt).toLocaleString(dateLocale)}</span>
+          <span aria-hidden>·</span>
+          <span>{d.report.period}: {periodLabel}</span>
         </p>
       </footer>
     </main>

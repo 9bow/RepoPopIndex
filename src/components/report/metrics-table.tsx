@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -60,69 +61,79 @@ export function MetricsTable({
           open={openCategories.has(key)}
           onOpenChange={() => toggle(key)}
         >
-          <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left hover:bg-muted/50">
+          <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl border border-border/70 px-4 py-3 text-left hover:bg-muted/50">
             <span className="text-sm font-medium">{cat.name || key}</span>
-            <span className="text-sm text-muted-foreground">
-              {cat.insufficient
-                ? d.metricsTable.insufficient
-                : `${Math.round(cat.score)}/100`}
+            <span className="flex items-center gap-3">
+              <span className="text-sm font-mono tabular-nums text-muted-foreground">
+                {cat.insufficient
+                  ? d.metricsTable.insufficient
+                  : `${Math.round(cat.score)}/100`}
+              </span>
+              <ChevronDown
+                className={`size-4 text-muted-foreground transition-transform ${openCategories.has(key) ? "rotate-180" : ""}`}
+                aria-hidden
+              />
             </span>
           </CollapsibleTrigger>
-          <CollapsibleContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{d.metricsTable.metric}</TableHead>
-                  <TableHead className="text-right">{d.metricsTable.raw}</TableHead>
-                  <TableHead className="text-right">
-                    {d.metricsTable.normalized}
-                  </TableHead>
-                  <TableHead className="text-right">{d.metricsTable.weight}</TableHead>
-                  <TableHead className="text-right">
-                    {d.metricsTable.contribution}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {Object.entries(cat.metrics).map(([name, m]) => {
-                  const drillUrl = getMetricDrillDownUrl(name, platform, owner, repo, period);
-                  return (
-                  <TableRow key={name}>
-                    <TableCell className="text-sm max-w-[14rem]">
-                      {drillUrl ? (
-                        <a
-                          href={drillUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:underline"
-                          title={d.metricsTable.openSource}
-                        >
-                          <MetricName metricKey={name} />
-                          <span aria-hidden className="ml-1 text-xs text-muted-foreground">↗</span>
-                        </a>
-                      ) : (
-                        <MetricName metricKey={name} />
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-sm">
-                      {m.raw !== null ? m.raw.toLocaleString() : "N/A"}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-sm">
-                      {m.normalized !== null ? m.normalized.toFixed(3) : "N/A"}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-sm">
-                      {m.weighted !== null ? m.weighted.toFixed(3) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-sm">
-                      {m.weighted !== null
-                        ? (m.weighted * 100).toFixed(1)
-                        : "—"}
-                    </TableCell>
-                  </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+          <CollapsibleContent className="pt-2">
+            <div className="-mx-4 sm:mx-0 overflow-x-auto">
+              <div className="min-w-[36rem] px-4 sm:min-w-0 sm:px-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{d.metricsTable.metric}</TableHead>
+                      <TableHead className="text-right">{d.metricsTable.raw}</TableHead>
+                      <TableHead className="text-right hidden md:table-cell">
+                        {d.metricsTable.normalized}
+                      </TableHead>
+                      <TableHead className="text-right hidden sm:table-cell">{d.metricsTable.weight}</TableHead>
+                      <TableHead className="text-right">
+                        {d.metricsTable.contribution}
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Object.entries(cat.metrics).map(([name, m]) => {
+                      const drillUrl = getMetricDrillDownUrl(name, platform, owner, repo, period);
+                      return (
+                        <TableRow key={name}>
+                          <TableCell className="text-sm max-w-[10rem] sm:max-w-[14rem]">
+                            {drillUrl ? (
+                              <a
+                                href={drillUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:underline inline-block"
+                                title={d.metricsTable.openSource}
+                              >
+                                <MetricName metricKey={name} />
+                                <span aria-hidden className="ml-1 text-xs text-muted-foreground">↗</span>
+                              </a>
+                            ) : (
+                              <MetricName metricKey={name} />
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-mono tabular-nums text-sm">
+                            {m.raw !== null ? m.raw.toLocaleString() : "N/A"}
+                          </TableCell>
+                          <TableCell className="text-right font-mono tabular-nums text-sm hidden md:table-cell">
+                            {m.normalized !== null ? m.normalized.toFixed(3) : "N/A"}
+                          </TableCell>
+                          <TableCell className="text-right font-mono tabular-nums text-sm hidden sm:table-cell">
+                            {m.weighted !== null ? m.weighted.toFixed(3) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right font-mono tabular-nums text-sm">
+                            {m.weighted !== null
+                              ? (m.weighted * 100).toFixed(1)
+                              : "—"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
           </CollapsibleContent>
         </Collapsible>
       ))}
