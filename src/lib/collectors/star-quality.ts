@@ -18,9 +18,6 @@ interface StargazerNode {
     createdAt: string;
     followers: { totalCount: number };
     repositories: { totalCount: number };
-    contributionsCollection: {
-      contributionCalendar: { totalContributions: number };
-    };
   };
 }
 
@@ -32,10 +29,17 @@ const TOTAL_STARS_QUERY = `
   }
 `;
 
+/**
+ * Recent stargazers query. Intentionally lightweight: we drop
+ * `contributionsCollection.contributionCalendar` because GitHub charges high
+ * GraphQL complexity for that field, and pulling it for 100 users routinely
+ * exceeded the 15s collector budget on busy repos. follower/repo counts +
+ * account age give a workable bot heuristic without the overhead.
+ */
 const STARGAZERS_QUERY = `
-  query($owner: String!, $repo: String!, $after: String) {
+  query($owner: String!, $repo: String!) {
     repository(owner: $owner, name: $repo) {
-      stargazers(first: 100, orderBy: { field: STARRED_AT, direction: DESC }, after: $after) {
+      stargazers(first: 100, orderBy: { field: STARRED_AT, direction: DESC }) {
         edges {
           starredAt
           node {
@@ -43,12 +47,8 @@ const STARGAZERS_QUERY = `
             createdAt
             followers { totalCount }
             repositories { totalCount }
-            contributionsCollection {
-              contributionCalendar { totalContributions }
-            }
           }
         }
-        pageInfo { endCursor hasNextPage }
       }
     }
   }
@@ -70,12 +70,10 @@ async function graphql<T>(query: string, variables: Record<string, unknown>): Pr
 function computeUqs(node: StargazerNode["node"], now: number): number {
   const ageDays = (now - new Date(node.createdAt).getTime()) / (1000 * 60 * 60 * 24);
 
-  // Bot flag
+  // Bot heuristic: brand-new account with no followers and no repos.
   if (
     ageDays < 7 ||
-    (node.followers.totalCount === 0 &&
-      node.repositories.totalCount === 0 &&
-      node.contributionsCollection.contributionCalendar.totalContributions === 0)
+    (node.followers.totalCount === 0 && node.repositories.totalCount === 0)
   ) {
     return 0;
   }
@@ -83,13 +81,8 @@ function computeUqs(node: StargazerNode["node"], now: number): number {
   const A = Math.min(1, ageDays / 730);
   const F = Math.min(1, Math.log(1 + node.followers.totalCount) / Math.log(1 + 100));
   const R = Math.min(1, Math.log(1 + node.repositories.totalCount) / Math.log(1 + 30));
-  const C = Math.min(
-    1,
-    Math.log(1 + node.contributionsCollection.contributionCalendar.totalContributions) /
-      Math.log(1 + 500)
-  );
 
-  return 0.25 * A + 0.25 * F + 0.25 * R + 0.25 * C;
+  return 0.4 * A + 0.3 * F + 0.3 * R;
 }
 
 function average(values: number[]): number {
@@ -114,7 +107,6 @@ export async function analyzeStarQuality(
   repo: string
 ): Promise<CollectorResult> {
   try {
-    // Step 1: get total star count
     const totalData = await graphql<{ repository: { stargazerCount: number } }>(
       TOTAL_STARS_QUERY,
       { owner, repo }
@@ -128,78 +120,36 @@ export async function analyzeStarQuality(
         metrics: [
           { category: "G8", metricKey: "G8.1", rawValue: 0 },
           { category: "G8", metricKey: "G8.2", rawValue: 0 },
-          { category: "G8", metricKey: "G8.3", rawValue: 0 },
         ],
       };
     }
 
-    // Step 2: fetch 100 most recent stargazers
     const recentData = await graphql<{
       repository: {
-        stargazers: {
-          edges: StargazerNode[];
-          pageInfo: { endCursor: string; hasNextPage: boolean };
-        };
+        stargazers: { edges: StargazerNode[] };
       };
-    }>(STARGAZERS_QUERY, { owner, repo, after: null });
+    }>(STARGAZERS_QUERY, { owner, repo });
 
     const recentEdges: StargazerNode[] = recentData?.repository?.stargazers?.edges ?? [];
 
-    // Step 3: historical sample if total > 200
-    let historicalEdges: StargazerNode[] = [];
-    if (totalStars > 200) {
-      const offset = Math.floor(Math.random() * (totalStars - 100));
-      // Build a cursor by paginating to the offset using pageInfo
-      // GitHub GraphQL doesn't support offset-based cursors directly;
-      // use the endCursor from the recent batch shifted to approximate position.
-      // We fetch a second batch from a rough midpoint by computing pages.
-      // Since we can't do true random cursor without pagination, we use
-      // the endCursor pattern by requesting from the ~offset page.
-      // Simplest viable approach: fetch page at floor(offset/100) * 100 index.
-      const pageIndex = Math.floor(offset / 100);
-      let cursor: string | null = null;
-
-      type PageData = {
-        repository: {
-          stargazers: { pageInfo: { endCursor: string; hasNextPage: boolean } };
-        };
+    if (recentEdges.length === 0) {
+      // GraphQL returned nothing usable — surface as missing, not zero.
+      return {
+        source: "star-quality",
+        metrics: [
+          { category: "G8", metricKey: "G8.1", rawValue: null },
+          { category: "G8", metricKey: "G8.2", rawValue: null },
+        ],
+        error: "no stargazer data returned",
       };
-      const PAGE_QUERY = `query($owner: String!, $repo: String!, $after: String) {
-        repository(owner: $owner, name: $repo) {
-          stargazers(first: 100, orderBy: { field: STARRED_AT, direction: DESC }, after: $after) {
-            pageInfo { endCursor hasNextPage }
-          }
-        }
-      }`;
-
-      for (let i = 0; i < pageIndex; i++) {
-        await waitForRateLimit("github-graphql");
-        const pageData: PageData | null = await graphql<PageData>(PAGE_QUERY, { owner, repo, after: cursor });
-        const pi: { endCursor: string; hasNextPage: boolean } | undefined =
-          pageData?.repository?.stargazers?.pageInfo;
-        if (!pi?.hasNextPage) break;
-        cursor = pi.endCursor;
-      }
-
-      if (cursor !== null) {
-        const histData = await graphql<{
-          repository: { stargazers: { edges: StargazerNode[] } };
-        }>(STARGAZERS_QUERY, { owner, repo, after: cursor });
-        historicalEdges = histData?.repository?.stargazers?.edges ?? [];
-      }
     }
 
     const now = Date.now();
-    const recentUqs = recentEdges.map((e) => computeUqs(e.node, now));
-    const historicalUqs = historicalEdges.map((e) => computeUqs(e.node, now));
-
-    const avgUqsRecent = average(recentUqs);
-    const avgUqsHistorical = historicalEdges.length > 0 ? average(historicalUqs) : avgUqsRecent;
-    const avgUqs = (avgUqsRecent + avgUqsHistorical) / 2;
-
+    const uqs = recentEdges.map((e) => computeUqs(e.node, now));
+    const avgUqs = average(uqs);
     const qualityStarScore = totalStars * avgUqs;
 
-    // Star growth rate from recent sample date range
+    // Star arrival rate: stars/day across the recent sample window.
     let g82: number | null = null;
     if (recentEdges.length >= 2) {
       const oldest = new Date(recentEdges[recentEdges.length - 1].starredAt).getTime();
@@ -218,14 +168,26 @@ export async function analyzeStarQuality(
           category: "G8",
           metricKey: "G8.1",
           rawValue: qualityStarScore,
-          rawJson: { avgUqsRecent, avgUqsHistorical, avgUqs, burstDetected },
+          rawJson: {
+            avgUqs,
+            avgUqsRecent: avgUqs,
+            avgUqsHistorical: avgUqs,
+            burstDetected,
+            sampledCount: recentEdges.length,
+          },
         },
         { category: "G8", metricKey: "G8.2", rawValue: g82 },
-        { category: "G8", metricKey: "G8.3", rawValue: burstDetected ? 1 : 0 },
       ],
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return { source: "star-quality", metrics: [], error: message };
+    return {
+      source: "star-quality",
+      metrics: [
+        { category: "G8", metricKey: "G8.1", rawValue: null },
+        { category: "G8", metricKey: "G8.2", rawValue: null },
+      ],
+      error: message,
+    };
   }
 }

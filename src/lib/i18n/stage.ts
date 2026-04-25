@@ -2,13 +2,13 @@ import type { Locale } from "./dictionary";
 
 /** Server sends English stage strings; map to Korean for UI when locale is ko. */
 const STAGE_KO: Record<string, string> = {
-  "Starting collectors...": "수집기를 시작하는 중...",
+  "Starting collectors...": "수집을 시작하는 중...",
   "Collecting GitHub metrics...": "GitHub 지표를 수집하는 중...",
   "GitHub GraphQL done": "GitHub GraphQL 완료",
   "GitHub Search done": "GitHub 검색 완료",
   "GitHub REST done": "GitHub REST 완료",
   "Dependents done": "의존 수집 완료",
-  "Star quality done": "스타 품질 분석 완료",
+  "Star quality done": "별점 품질 분석 완료",
   "Collecting HuggingFace metrics...": "Hugging Face 지표를 수집하는 중...",
   "HuggingFace done": "Hugging Face 완료",
   "Social buzz done": "소셜 반응 수집 완료",

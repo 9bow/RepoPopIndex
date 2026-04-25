@@ -84,19 +84,19 @@ export function UrlInput() {
             setUrl(e.target.value);
             setError(null);
           }}
-          className="h-12 pr-24 text-base"
+          className="h-12 sm:h-13 pr-24 text-base bg-background/80 backdrop-blur-sm"
           disabled={loading}
         />
         {platform && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-border bg-background/90 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground tracking-wide uppercase">
             {platform === "github" ? "GitHub" : "HuggingFace"}
           </span>
         )}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm text-muted-foreground">{d.home.period}</span>
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1.5">
           {PERIODS.map((p) => (
             <button
               key={p}
@@ -104,8 +104,8 @@ export function UrlInput() {
               onClick={() => setPeriod(p)}
               className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                 period === p
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  ? "bg-accent-vivid text-white shadow-sm"
+                  : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground transition"
               }`}
             >
               {PERIOD_LABELS[p]}
@@ -116,7 +116,7 @@ export function UrlInput() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <Button type="submit" className="h-11 w-full text-base" disabled={loading}>
+      <Button type="submit" className="h-11 w-full text-base font-medium" disabled={loading}>
         {loading ? d.home.analyzing : d.home.analyze}
       </Button>
     </form>

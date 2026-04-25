@@ -10,21 +10,21 @@ const METRIC_COPY: Record<
 > = {
   // GitHub — fundamentals
   stars: {
-    short: { en: "Star count", ko: "스타 수" },
+    short: { en: "Star count", ko: "별점 수" },
     desc: {
       en: "Total GitHub stars; measures broad recognition of the repository.",
-      ko: "GitHub 스타 총개수. 리포지토리에 대한 광범위한 인지도를 나타냅니다.",
+      ko: "GitHub 별점 총개수입니다. 저장소가 얼마나 널리 알려졌는지 보여줍니다.",
     },
   },
   forks: {
     short: { en: "Fork count", ko: "포크 수" },
     desc: {
       en: "Number of repository forks, indicating reuse and experimentation.",
-      ko: "포크 수. 코드 재사용·실험의 관심을 나타냅니다.",
+      ko: "포크 수. 코드 재사용·실험에 대한 관심을 나타냅니다.",
     },
   },
   watchers: {
-    short: { en: "Watchers", ko: "Watcher 수" },
+    short: { en: "Watchers", ko: "Watcher(관찰자) 수" },
     desc: {
       en: "Users watching the repo for activity notifications.",
       ko: "활동 알림을 구독하는 사용자 수입니다.",
@@ -77,7 +77,7 @@ const METRIC_COPY: Record<
     short: { en: "Activity momentum", ko: "활동 모멘텀" },
     desc: {
       en: "Ratio of recent vs prior 4 weeks of commit activity. Values above 1 mean a faster recent pace.",
-      ko: "최근 4주 대비 이전 4주 커밋 비율. 1보다 크면 가속, 작으면 둔화로 해석됩니다.",
+      ko: "최근 4주의 커밋 수를 그 이전 4주와 비교합니다. 1보다 크면 활동이 가속, 작으면 둔화로 해석합니다.",
     },
   },
   // G3 issues
@@ -171,14 +171,14 @@ const METRIC_COPY: Record<
     short: { en: "Dependents", ko: "의존(사용) 수" },
     desc: {
       en: "How many public repos on GitHub depend on this package (from dependents graph, best-effort).",
-      ko: "GitHub에 공개된 의존 리포지토리 수(의존성 그래프, 가능한 범위에서)입니다.",
+      ko: "이 패키지에 의존하는 GitHub 공개 저장소 수입니다(의존성 그래프, 가능한 범위).",
     },
   },
   "G7.1": {
     short: { en: "Community health %", ko: "커뮤니티 건강도" },
     desc: {
       en: "GitHub’s community health score (0–100) if available.",
-      ko: "GitHub 커뮤니티 프로필의 건강도 점수(0~100)입니다.",
+      ko: "GitHub 커뮤니티 프로필이 보고하는 0~100 건강도 점수입니다.",
     },
   },
   "G7.2": {
@@ -203,24 +203,24 @@ const METRIC_COPY: Record<
     },
   },
   "G8.1": {
-    short: { en: "Sampled stargazer mass", ko: "스타 샘플 규모" },
+    short: { en: "Sampled stargazer mass", ko: "별점 샘플 규모" },
     desc: {
       en: "Scale of sampled recent stargazers used for quality scoring.",
-      ko: "스타 품질 산정에 쓰인 샘플 스타게이저 규모입니다.",
+      ko: "별점 품질 산정에 쓰인 샘플 스타게이저 규모입니다.",
     },
   },
   "G8.2": {
     short: { en: "Account-age balance", ko: "계정 연령 균형" },
     desc: {
       en: "Balance between new vs established accounts among stargazers; flags botted bursts.",
-      ko: "스타를 준 계정의 신규/기존 비율. 봇·급작스러운 집계를 잡는 데 쓰입니다.",
+      ko: "별점을 준 계정의 신규/기존 비율. 봇이나 단기 폭주 별점을 잡는 데 씁니다.",
     },
   },
   "G8.3": {
     short: { en: "Burst flag", ko: "급증 플래그" },
     desc: {
       en: "Heuristic 0/1 when a star-activity burst was detected.",
-      ko: "스타 급증이 감지되면 1, 아니면 0입니다.",
+      ko: "별점 급증이 감지되면 1, 아니면 0입니다.",
     },
   },
   // Social

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Noto_Sans_KR } from "next/font/google";
+import { Fraunces, Geist, Geist_Mono, Noto_Sans_KR } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
 import { LocaleProvider } from "@/contexts/locale-context";
@@ -14,6 +14,13 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-fraunces",
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 const notoSansKr = Noto_Sans_KR({
@@ -49,13 +56,13 @@ export default async function RootLayout({
     <html
       lang={locale}
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${notoSansKr.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${notoSansKr.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body
-        className={`${notoSansKr.className} min-h-full flex flex-col bg-background text-foreground`}
+        className={`min-h-full flex flex-col bg-background text-foreground font-sans`}
       >
         <LocaleProvider locale={locale}>
-          <div className="pointer-events-auto fixed right-3 top-3 z-50 sm:right-4 sm:top-4">
+          <div className="pointer-events-auto fixed right-2 top-2 z-50 sm:right-4 sm:top-4 text-xs sm:text-sm">
             <LanguageSwitcher />
           </div>
           {children}

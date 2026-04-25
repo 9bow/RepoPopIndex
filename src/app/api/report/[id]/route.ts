@@ -63,14 +63,15 @@ export async function GET(
     compositeScore: score?.compositeScore ?? 0,
     categoryScores: (score?.categoryScores as Record<string, never>) ?? {},
     excludedCategories: (score?.excludedCategories as string[]) ?? [],
-    starQuality: score
-      ? {
-          factor: score.starQualityFactor ?? 0,
-          recent: score.starQualityRecent ?? 0,
-          historical: score.starQualityHistorical ?? 0,
-          burstDetected: (score.starBurstDetected ?? 0) === 1,
-        }
-      : null,
+    starQuality:
+      score && score.starQualityFactor !== null && score.starQualityFactor !== undefined
+        ? {
+            factor: score.starQualityFactor,
+            recent: score.starQualityRecent ?? score.starQualityFactor,
+            historical: score.starQualityHistorical ?? score.starQualityFactor,
+            burstDetected: (score.starBurstDetected ?? 0) === 1,
+          }
+        : null,
     socialBuzz: { hn: hnData },
     createdAt: analysis.createdAt.toISOString(),
     completedAt: analysis.completedAt?.toISOString() ?? null,
