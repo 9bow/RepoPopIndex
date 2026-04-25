@@ -37,7 +37,7 @@ export function ScoreGauge({ score }: { score: number }) {
             fill="none"
             stroke="currentColor"
             strokeWidth="12"
-            className="text-muted/30"
+            className="text-muted-foreground/20"
           />
           <path
             d="M 20 100 A 80 80 0 0 1 180 100"

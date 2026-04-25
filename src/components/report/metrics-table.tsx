@@ -98,20 +98,21 @@ export function MetricsTable({
                       return (
                         <TableRow key={name}>
                           <TableCell className="text-sm max-w-[10rem] sm:max-w-[14rem]">
-                            {drillUrl ? (
-                              <a
-                                href={drillUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="hover:underline inline-block"
-                                title={d.metricsTable.openSource}
-                              >
-                                <MetricName metricKey={name} />
-                                <span aria-hidden className="ml-1 text-xs text-muted-foreground">↗</span>
-                              </a>
-                            ) : (
+                            <span className="inline-flex items-center gap-1">
                               <MetricName metricKey={name} />
-                            )}
+                              {drillUrl && (
+                                <a
+                                  href={drillUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                                  title={d.metricsTable.openSource}
+                                  aria-label={d.metricsTable.openSource}
+                                >
+                                  ↗
+                                </a>
+                              )}
+                            </span>
                           </TableCell>
                           <TableCell className="text-right font-mono tabular-nums text-sm">
                             {m.raw !== null ? m.raw.toLocaleString() : "N/A"}

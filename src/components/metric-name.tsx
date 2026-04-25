@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { Tooltip } from "@base-ui/react/tooltip";
 import { useLocale } from "@/contexts/locale-context";
 import { getMetricDescription, getMetricLabel } from "@/lib/i18n/metric-labels";

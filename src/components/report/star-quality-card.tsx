@@ -21,7 +21,7 @@ export function StarQualityCard({ starQuality }: { starQuality: StarQuality }) {
       </CardHeader>
       <CardContent className="space-y-4">
         {starQuality.burstDetected && (
-          <div className="rounded-xl border border-destructive/40 bg-destructive/8 px-4 py-3 text-sm text-destructive dark:bg-destructive/15">
+          <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive dark:bg-destructive/20">
             {d.starQuality.burst}
           </div>
         )}
