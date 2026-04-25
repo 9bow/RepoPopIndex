@@ -11,7 +11,9 @@ const DEFAULT_CONFIG: RetryConfig = {
   baseDelay: 2000,
   maxDelay: 30000,
   backoffMultiplier: 2,
-  retryableStatuses: [202, 429, 500, 502, 503],
+  // 403 covers GitHub's secondary rate limit (returned as 403, not 429).
+  // 408 covers transient request timeouts.
+  retryableStatuses: [202, 403, 408, 429, 500, 502, 503, 504],
 };
 
 export async function fetchWithRetry(
