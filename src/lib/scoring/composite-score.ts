@@ -1,4 +1,9 @@
-import type { CategoryScore, CollectorResult, MetricValue } from "@/lib/types";
+import type {
+  CategoryScore,
+  CollectorResult,
+  MetricValue,
+  PartialInfo,
+} from "@/lib/types";
 import type { Platform } from "@/lib/types";
 import { GITHUB_CATEGORIES, GITHUB_METRICS, HF_CATEGORIES, HF_METRICS, RECENCY_FACTOR } from "./config";
 import { applyRecencyFactor, normalizeMetric } from "./normalizer";
@@ -17,7 +22,12 @@ interface ScoreResult {
   metricScores: Record<string, MetricValue>;
   excludedCategories: string[];
   starQuality: StarQuality | null;
+  // Derived from collector errors. Orchestrator may augment this with
+  // "served_from_backup" when it pulls a stale cached value.
+  partial: PartialInfo | null;
 }
+
+const SOCIAL_SOURCES = new Set(["hackernews", "reddit", "stackoverflow", "youtube"]);
 
 export function computeScores(
   collectorResults: CollectorResult[],
@@ -85,11 +95,34 @@ export function computeScores(
     }
   }
 
+  // Surface a typed partial reason from collector errors. Re-normalization of
+  // missing sub-source weights is already handled inside computeCategoryScores
+  // (missing rawValue → excluded from both numerator and availableCeiling).
+  const missingSources: string[] = [];
+  let sawRateLimit = false;
+  for (const result of collectorResults) {
+    if (!SOCIAL_SOURCES.has(result.source)) continue;
+    if (!result.error) continue;
+    missingSources.push(result.source);
+    if (result.error === "rate_limited" || result.error === "rate_limit") {
+      sawRateLimit = true;
+    }
+  }
+
+  const partial: PartialInfo | null =
+    missingSources.length > 0
+      ? {
+          reason: sawRateLimit ? "rate_limit" : "collector_error",
+          missingSources,
+        }
+      : null;
+
   return {
     compositeScore,
     categoryScores,
     metricScores,
     excludedCategories,
     starQuality,
+    partial,
   };
 }

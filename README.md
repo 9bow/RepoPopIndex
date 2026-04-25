@@ -76,7 +76,7 @@ pnpm dev
 
 ### 선택적 소셜 수집기 (dark-launch)
 
-Reddit, Stack Overflow, YouTube 수집기는 **자격 정보가 있을 때만** 동작하며, 현재는 종합 점수에 영향을 주지 않고 별도 Redis blob(`rpi:social:metrics:{analysisId}`, 30일 TTL)에 저장만 됩니다. 자격 정보가 없으면 빈 결과로 통과되고 파이프라인은 HackerNews만으로 진행됩니다.
+Reddit, Stack Overflow, YouTube 수집기는 **자격 정보가 있을 때만** 동작합니다. Reddit OAuth 환경변수(`REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_USER_AGENT`)가 설정되지 않으면 Reddit 지표는 건너뛰고, S1(소셜 화제도) 카테고리의 가중치를 사용 가능한 소스 기준으로 **비례 재정규화**하여 종합 점수를 산출합니다. 자격 정보가 없으면 빈 결과로 통과되고 파이프라인은 HackerNews만으로 진행됩니다.
 
 #### Reddit (`REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_USER_AGENT`)
 

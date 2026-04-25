@@ -7,7 +7,8 @@ import { Progress } from "@/components/ui/progress";
 import { useLocale } from "@/contexts/locale-context";
 import { translateStage } from "@/lib/i18n/stage";
 import { formatTemplate } from "@/lib/i18n/dictionary";
-import type { Period, ProgressUpdate } from "@/lib/types";
+import { ReportView } from "@/components/report/report-view";
+import type { AnalysisReport, Period, ProgressUpdate } from "@/lib/types";
 
 interface IdleClientProps {
   platform: "github" | "huggingface";
@@ -24,6 +25,19 @@ export function IdleClient({ platform, owner, repo, period }: IdleClientProps) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState<ProgressUpdate | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const slug = `${platform}/${owner}/${repo}/${period}`;
+
+  // non-authoritative: read client cache as visual placeholder before authoritative data arrives;
+  // never used for trust decisions — only for UX continuity on repeat visits
+  const [cachedReport] = useState<AnalysisReport | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const stored = localStorage.getItem(`rpi:lastReport:${slug}`);
+      return stored ? (JSON.parse(stored) as AnalysisReport) : null;
+    } catch {
+      return null;
+    }
+  });
 
   const url =
     platform === "github"
@@ -119,6 +133,26 @@ export function IdleClient({ platform, owner, repo, period }: IdleClientProps) {
           </Button>
         </div>
       </main>
+    );
+  }
+
+  // Idle phase: show cached placeholder if available, otherwise empty state
+  if (cachedReport) {
+    return (
+      <div className="relative">
+        {/* non-authoritative: translucent last-seen report; server data will replace on refresh */}
+        <div className="pointer-events-none select-none opacity-40" aria-hidden="true">
+          <ReportView report={cachedReport} />
+        </div>
+        <div className="fixed inset-0 z-10 flex items-end justify-center pb-16 sm:pb-20 px-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-background/95 backdrop-blur-sm px-6 py-5 shadow-lg space-y-4 text-center">
+            <p className="text-sm text-muted-foreground">{d.report.lastViewBanner}</p>
+            <Button onClick={startAnalysis} className="w-full">
+              Run Analysis
+            </Button>
+          </div>
+        </div>
+      </div>
     );
   }
 

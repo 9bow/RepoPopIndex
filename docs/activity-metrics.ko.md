@@ -470,6 +470,5 @@ compositeScore = 6350 / 100 = 63.5
 | HTTP | `GET /api/status/[id]` | 진행 상황 폴링 |
 | HTTP | `GET /api/report/[id]` | 최종 리포트 (`analyses` + `scores`) |
 | Inngest | `analyze-repo` (이벤트 `analysis/run`, `src/inngest/functions/analyze.ts`) | 오케스트레이션된 파이프라인, 동시성 상한 적용 |
-| Script | `scripts/migrate.mjs` | Advisory lock을 사용한 Drizzle 마이그레이션 |
 
 `analyses.status`를 통해 보고되는 진행 단계: `queued → collecting → scoring → complete | partial | failed`.

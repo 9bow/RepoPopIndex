@@ -8,6 +8,18 @@ export type AnalysisStatus =
   | "partial"
   | "failed";
 
+export type ScoreVersion = "v1" | "v2";
+
+export type PartialReason =
+  | "rate_limit"
+  | "collector_error"
+  | "served_from_backup";
+
+export interface PartialInfo {
+  reason: PartialReason;
+  missingSources: string[];
+}
+
 export interface MetricValue {
   raw: number | null;
   normalized: number | null;
@@ -21,6 +33,32 @@ export interface CategoryScore {
   metrics: Record<string, MetricValue>;
   insufficient: boolean;
   reason?: string;
+}
+
+export interface SocialBuzzHN {
+  storyCount: number;
+  totalPoints: number;
+  totalComments: number;
+  topStory: { title: string; url: string; points: number } | null;
+  engagement: number;
+}
+
+export interface SocialBuzzReddit {
+  post_count?: number;
+  score_sum?: number;
+  comment_sum?: number;
+}
+
+export interface SocialBuzzStackOverflow {
+  answer_count?: number;
+  score_sum?: number;
+  view_sum?: number;
+}
+
+export interface SocialBuzzYouTube {
+  video_count?: number;
+  view_sum?: number;
+  like_sum?: number;
 }
 
 export interface AnalysisReport {
@@ -40,14 +78,16 @@ export interface AnalysisReport {
     burstDetected: boolean;
   } | null;
   socialBuzz: {
-    hn: {
-      storyCount: number;
-      totalPoints: number;
-      totalComments: number;
-      topStory: { title: string; url: string; points: number } | null;
-      engagement: number;
-    } | null;
+    hn: SocialBuzzHN | null;
+    reddit: SocialBuzzReddit | null;
+    stackoverflow: SocialBuzzStackOverflow | null;
+    youtube: SocialBuzzYouTube | null;
   };
+  // Optional: absent on legacy reports (treat as "v1"). New reports stamp "v2".
+  scoreVersion?: ScoreVersion;
+  // Replaces legacy boolean `partial`. null when the report is fully complete;
+  // absent on legacy v1 reports cached before this field existed.
+  partial?: PartialInfo | null;
   createdAt: string;
   completedAt: string | null;
 }

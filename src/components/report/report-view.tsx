@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScoreGauge } from "@/components/report/score-gauge";
@@ -20,6 +21,17 @@ export function ReportView({ report }: ReportViewProps) {
   const periodLabel = d.report.periods[report.period as Period];
   const dateLocale = locale === "ko" ? "ko-KR" : "en-US";
 
+  const slug = `${report.platform}/${report.owner}/${report.repo}/${report.period}`;
+
+  // non-authoritative client cache — for next-visit placeholder only, never read for trust decisions
+  useEffect(() => {
+    try {
+      localStorage.setItem(`rpi:lastReport:${slug}`, JSON.stringify(report));
+    } catch {
+      // localStorage unavailable (private browsing, storage quota, etc.)
+    }
+  }, [slug, report]);
+
   return (
     <main className="mx-auto w-full max-w-5xl px-4 sm:px-6 py-8 pt-16 sm:pt-20 space-y-8 sm:space-y-12">
       <header className="space-y-4">
@@ -28,6 +40,11 @@ export function ReportView({ report }: ReportViewProps) {
             <Badge variant="outline">
               {report.platform === "github" ? "GitHub" : "HuggingFace"}
             </Badge>
+            {report.scoreVersion && (
+              <Badge variant="secondary" className="text-xs font-mono">
+                {report.scoreVersion}
+              </Badge>
+            )}
             <h1 className="text-xl sm:text-2xl font-semibold font-display tracking-tight break-all">
               <a
                 href={
@@ -52,11 +69,24 @@ export function ReportView({ report }: ReportViewProps) {
             PDF 다운로드
           </Button>
         </div>
-        {report.status === "partial" && (
+
+        {/* New typed partial info banner */}
+        {report.partial && (
+          <div className="rounded-xl border border-amber-300/60 bg-amber-50/80 px-4 py-3 text-sm leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-200">
+            {d.report.partialResult} — {report.partial.reason.replace(/_/g, " ")}
+            {report.partial.missingSources.length > 0 && (
+              <>; {d.report.partialMissing}: {report.partial.missingSources.join(", ")}</>
+            )}
+          </div>
+        )}
+
+        {/* Legacy partial status banner for v1 reports without partial field */}
+        {report.status === "partial" && !report.partial && (
           <div className="rounded-xl border border-amber-300/60 bg-amber-50/80 px-4 py-3 text-sm leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-200">
             {d.report.partialBanner}
           </div>
         )}
+
         <ScoreGauge score={report.compositeScore} />
       </header>
 

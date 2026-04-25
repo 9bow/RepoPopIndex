@@ -471,6 +471,5 @@ Fallback when a key is not registered: `humanizeKey(key)` for the label and a ge
 | HTTP | `GET /api/status/[id]` | Progress polling |
 | HTTP | `GET /api/report/[id]` | Final report (`analyses` + `scores`) |
 | Inngest | `analyze-repo` on event `analysis/run` (`src/inngest/functions/analyze.ts`) | Orchestrated pipeline, concurrency capped |
-| Script | `scripts/migrate.mjs` | Drizzle migrations with advisory lock |
 
 Progress stages reported through `analyses.status`: `queued → collecting → scoring → complete | partial | failed`.

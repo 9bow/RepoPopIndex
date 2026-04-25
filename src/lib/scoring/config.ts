@@ -63,10 +63,27 @@ export const GITHUB_METRICS: MetricConfig[] = [
   // G8: Star Quality (from star-quality)
   { key: "G8.1", category: "G8", maxI: 200000, weight: 3, cumulative: true },
   { key: "G8.2", category: "G8", maxI: 100, weight: 2, cumulative: false },
-  // S1: Social Buzz (from hackernews)
-  { key: "story_count", category: "S1", maxI: 50, weight: 1, cumulative: false },
-  { key: "total_points", category: "S1", maxI: 2000, weight: 1, cumulative: false },
-  { key: "engagement", category: "S1", maxI: 5000, weight: 1, cumulative: false },
+  // S1: Social Buzz — 4 sub-sources with target share HN 40 / Reddit 25 / SO 20 / YouTube 15.
+  // Sub-source totals (summed metric weights) chosen to approximate that split:
+  // HN total=8, Reddit total=5, StackOverflow total=4, YouTube total=3 → 8/5/4/3 of 20 = 40/25/20/15%.
+  // Missing sub-source metrics are dropped from both numerator and denominator at the
+  // category level (see category-scores.ts), giving proportional re-normalization for free.
+  // HN sub-source (weight share ~40%)
+  { key: "story_count", category: "S1", maxI: 50, weight: 3, cumulative: false },
+  { key: "total_points", category: "S1", maxI: 2000, weight: 3, cumulative: false },
+  { key: "engagement", category: "S1", maxI: 5000, weight: 2, cumulative: false },
+  // Reddit sub-source (weight share ~25%)
+  { key: "reddit_post_count", category: "S1", maxI: 20, weight: 2, cumulative: false },
+  { key: "reddit_score_sum", category: "S1", maxI: 2000, weight: 2, cumulative: false },
+  { key: "reddit_comment_sum", category: "S1", maxI: 2000, weight: 1, cumulative: false },
+  // StackOverflow sub-source (weight share ~20%)
+  { key: "so_question_count", category: "S1", maxI: 50, weight: 2, cumulative: false },
+  { key: "so_answered_ratio", category: "S1", maxI: 1.0, weight: 1, cumulative: false, linear: true },
+  { key: "so_score_sum", category: "S1", maxI: 200, weight: 1, cumulative: false },
+  // YouTube sub-source (weight share ~15%)
+  { key: "youtube_video_count", category: "S1", maxI: 20, weight: 1, cumulative: false },
+  { key: "youtube_view_sum", category: "S1", maxI: 1000000, weight: 1, cumulative: false },
+  { key: "youtube_like_sum", category: "S1", maxI: 20000, weight: 1, cumulative: false },
 ];
 
 export const HF_METRICS: MetricConfig[] = [
@@ -86,10 +103,23 @@ export const HF_METRICS: MetricConfig[] = [
   { key: "discussion_count", category: "H4", maxI: 100, weight: 1, cumulative: false },
   { key: "pr_count", category: "H4", maxI: 50, weight: 1, cumulative: false },
   { key: "card_score", category: "H4", maxI: 1.0, weight: 1, cumulative: true, linear: true },
-  // S1: Social Buzz (from hackernews)
-  { key: "story_count", category: "S1", maxI: 50, weight: 1, cumulative: false },
-  { key: "total_points", category: "S1", maxI: 2000, weight: 1, cumulative: false },
-  { key: "engagement", category: "S1", maxI: 5000, weight: 1, cumulative: false },
+  // S1: Social Buzz — see GITHUB_METRICS S1 block for the 40/25/20/15 split rationale.
+  // HN sub-source (weight share ~40%)
+  { key: "story_count", category: "S1", maxI: 50, weight: 3, cumulative: false },
+  { key: "total_points", category: "S1", maxI: 2000, weight: 3, cumulative: false },
+  { key: "engagement", category: "S1", maxI: 5000, weight: 2, cumulative: false },
+  // Reddit sub-source (weight share ~25%)
+  { key: "reddit_post_count", category: "S1", maxI: 20, weight: 2, cumulative: false },
+  { key: "reddit_score_sum", category: "S1", maxI: 2000, weight: 2, cumulative: false },
+  { key: "reddit_comment_sum", category: "S1", maxI: 2000, weight: 1, cumulative: false },
+  // StackOverflow sub-source (weight share ~20%)
+  { key: "so_question_count", category: "S1", maxI: 50, weight: 2, cumulative: false },
+  { key: "so_answered_ratio", category: "S1", maxI: 1.0, weight: 1, cumulative: false, linear: true },
+  { key: "so_score_sum", category: "S1", maxI: 200, weight: 1, cumulative: false },
+  // YouTube sub-source (weight share ~15%)
+  { key: "youtube_video_count", category: "S1", maxI: 20, weight: 1, cumulative: false },
+  { key: "youtube_view_sum", category: "S1", maxI: 1000000, weight: 1, cumulative: false },
+  { key: "youtube_like_sum", category: "S1", maxI: 20000, weight: 1, cumulative: false },
 ];
 
 export const GITHUB_CATEGORIES: CategoryConfig[] = [
@@ -127,7 +157,20 @@ export const GITHUB_CATEGORIES: CategoryConfig[] = [
     id: "G-Social",
     name: "Social Buzz",
     weight: 15,
-    metricKeys: ["story_count", "total_points", "engagement"],
+    metricKeys: [
+      "story_count",
+      "total_points",
+      "engagement",
+      "reddit_post_count",
+      "reddit_score_sum",
+      "reddit_comment_sum",
+      "so_question_count",
+      "so_answered_ratio",
+      "so_score_sum",
+      "youtube_video_count",
+      "youtube_view_sum",
+      "youtube_like_sum",
+    ],
   },
 ];
 
@@ -166,6 +209,19 @@ export const HF_CATEGORIES: CategoryConfig[] = [
     id: "H-Social",
     name: "Social Buzz",
     weight: 15,
-    metricKeys: ["story_count", "total_points", "engagement"],
+    metricKeys: [
+      "story_count",
+      "total_points",
+      "engagement",
+      "reddit_post_count",
+      "reddit_score_sum",
+      "reddit_comment_sum",
+      "so_question_count",
+      "so_answered_ratio",
+      "so_score_sum",
+      "youtube_video_count",
+      "youtube_view_sum",
+      "youtube_like_sum",
+    ],
   },
 ];

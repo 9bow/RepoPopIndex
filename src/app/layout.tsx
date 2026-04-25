@@ -3,7 +3,7 @@ import { Fraunces, Geist, Geist_Mono, Noto_Sans_KR } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
 import { LocaleProvider } from "@/contexts/locale-context";
-import { LanguageSwitcher } from "@/components/language-switcher";
+import { TopNav } from "@/components/layout/TopNav";
 import { TooltipProvider } from "./tooltip-provider";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
@@ -64,9 +64,7 @@ export default async function RootLayout({
       >
         <LocaleProvider locale={locale}>
           <TooltipProvider>
-            <div className="pointer-events-auto fixed right-2 top-2 z-50 sm:right-4 sm:top-4 text-xs sm:text-sm print:hidden">
-              <LanguageSwitcher />
-            </div>
+            <TopNav />
             {children}
           </TooltipProvider>
         </LocaleProvider>

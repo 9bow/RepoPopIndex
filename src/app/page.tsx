@@ -1,10 +1,17 @@
-"use client";
-
+import { headers } from "next/headers";
 import { UrlInput } from "@/components/url-input";
-import { useLocale } from "@/contexts/locale-context";
+import { RecentReports } from "@/components/home/recent-reports";
+import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
+import { getRecentReports } from "@/lib/cache";
 
-export default function Home() {
-  const { d } = useLocale();
+function readLocale(h: Awaited<ReturnType<typeof headers>>): Locale {
+  return h.get("x-rpi-locale") === "ko" ? "ko" : "en";
+}
+
+export default async function Home() {
+  const h = await headers();
+  const d = getDictionary(readLocale(h));
+  const recentItems = await getRecentReports(12);
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-5 py-12 sm:py-16 sm:pt-20">
@@ -23,6 +30,8 @@ export default function Home() {
 
         <p className="max-w-md text-xs text-muted-foreground">{d.home.footnote}</p>
       </div>
+
+      <RecentReports items={recentItems} />
     </main>
   );
 }
