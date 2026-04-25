@@ -143,7 +143,7 @@ const en = {
       "GitHub repositories are scored across six categories: Activity (20%), Community (20%), Adoption (25%), Popularity (15%), Health (5%), and Social Buzz (15%). HuggingFace models/datasets use Downloads (25%), Integration (20%), Activity (20%), Community (10%), Popularity (10%), and Social Buzz (15%). Category scores are averaged proportionally — if a category has insufficient data, its weight is redistributed across the remaining categories.",
     socialBuzzTitle: "Social Buzz sub-sources (S1)",
     socialBuzzBody:
-      "The Social Buzz category aggregates four sources with the following sub-weights: Hacker News 40%, Reddit 25%, Stack Overflow 20%, YouTube 15%. Each source's metrics (post count, points, engagement, etc.) are log-normalized and combined. If a source is unavailable (rate-limited, unconfigured, or served from backup), its weight is redistributed across the remaining active sources.",
+      "The Social Buzz category aggregates up to four sources: Hacker News, Reddit, Stack Overflow, and YouTube. Sub-source weights (HN 48%, Reddit 30%, SO 12%, YT 9%) are calibrated from empirical data across 25 major OSS repos — Reddit is typically unavailable (credentials not configured), and SO/YouTube yield at most 1 item per 3-month window. In practice, Hacker News is the dominant signal (~70% of the ceiling when Reddit is absent). Missing sources (null) are excluded from both numerator and denominator; zero-value sources remain in the denominator with their reduced weight.",
     starAbuseTitle: "Star quality & abuse correction",
     starAbuseBody:
       "Raw star counts are adjusted by a User Quality Score (UQS) computed from the 100 most recent stargazers. Each account is evaluated on age, follower count, and public repository count. The resulting quality factor (0–1) scales the star-based popularity score. When an unusual spike in starring activity is detected, a burst flag is recorded and the quality factor is reduced further.",
@@ -313,7 +313,7 @@ const ko: typeof en = {
       "GitHub 저장소는 Activity(20%), Community(20%), Adoption(25%), Popularity(15%), Health(5%), Social Buzz(15%)의 여섯 분야로 평가합니다. HuggingFace 모델·데이터셋은 Downloads(25%), Integration(20%), Activity(20%), Community(10%), Popularity(10%), Social Buzz(15%)로 평가합니다. 데이터가 부족한 분야는 제외하고 나머지 분야의 가중치를 비례해 재분배합니다.",
     socialBuzzTitle: "S1 소셜 버즈 세부 소스",
     socialBuzzBody:
-      "소셜 버즈 분야는 네 가지 소스를 합산합니다: Hacker News 40%, Reddit 25%, Stack Overflow 20%, YouTube 15%. 각 소스의 게시글 수·포인트·참여도 등 지표를 로그 정규화 후 결합합니다. 소스가 응답하지 않거나 사용 불가 상태일 경우 해당 가중치를 나머지 소스에 비례 재분배합니다.",
+      "소셜 버즈 분야는 Hacker News, Reddit, Stack Overflow, YouTube 네 가지 소스를 합산합니다. 서브소스 가중치(HN 48%, Reddit 30%, SO 12%, YT 9%)는 25개 주요 OSS 저장소 실측 데이터로 보정되었습니다. Reddit은 대부분 자격 정보 미설정으로 null 반환, SO/YouTube는 3개월 기간 내 최대 1건 수준입니다. 실제로는 Hacker News가 지배적 신호(Reddit 제외 시 상한의 ~70%)입니다. null 소스는 분자·분모 모두에서 제외되며, 0값 소스는 감소된 가중치로 분모에 남습니다.",
     starAbuseTitle: "별점 품질 및 어뷰징 보정",
     starAbuseBody:
       "원시 별점 수는 최근 100명의 스타게이저를 대상으로 계산한 UQS(사용자 품질 점수)로 보정합니다. 계정 나이·팔로워 수·공개 저장소 수를 기준으로 품질 계수(0~1)를 산출해 별점 기반 점수를 조정합니다. 비정상적인 별점 급증이 감지되면 품질 계수를 추가로 낮추고 급증 플래그를 기록합니다.",

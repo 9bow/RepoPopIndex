@@ -29,6 +29,19 @@ interface GraphQLSearchData {
   issuesClosed?: SearchResult;
   prsOpened?: SearchResult;
   prsMerged?: SearchResult;
+  recentIssuesTFR?: {
+    edges?: Array<{
+      node?: {
+        __typename?: string;
+        createdAt?: string;
+        timelineItems?: {
+          nodes?: Array<{
+            createdAt?: string;
+          }>;
+        };
+      };
+    }>;
+  };
 }
 
 /**
@@ -41,7 +54,7 @@ interface GraphQLSearchData {
  * primary 429 is honoured by `fetchWithRetry`.
  */
 const COMMUNITY_QUERY = `
-  query($issuesOpenedQ: String!, $issuesClosedQ: String!, $prsOpenedQ: String!, $prsMergedQ: String!) {
+  query($issuesOpenedQ: String!, $issuesClosedQ: String!, $prsOpenedQ: String!, $prsMergedQ: String!, $recentIssuesTFRQ: String!) {
     issuesOpened: search(query: $issuesOpenedQ, type: ISSUE) { issueCount }
     issuesClosed: search(query: $issuesClosedQ, type: ISSUE) { issueCount }
     prsOpened: search(query: $prsOpenedQ, type: ISSUE) { issueCount }
@@ -58,23 +71,55 @@ const COMMUNITY_QUERY = `
         }
       }
     }
+    recentIssuesTFR: search(query: $recentIssuesTFRQ, type: ISSUE, first: 10) {
+      edges {
+        node {
+          ... on Issue {
+            createdAt
+            timelineItems(first: 1, itemTypes: [ISSUE_COMMENT]) {
+              nodes {
+                ... on IssueComment {
+                  createdAt
+                }
+              }
+            }
+          }
+        }
+      }
+    }
   }
 `;
 
+function medianDays(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
 function medianMergeDays(edges: NonNullable<SearchResult["edges"]>): number | null {
-  const durations: number[] = [];
+  const days: number[] = [];
   for (const e of edges) {
     const n = e.node;
     if (!n?.mergedAt || !n.createdAt) continue;
-    const ms = new Date(n.mergedAt).getTime() - new Date(n.createdAt).getTime();
-    durations.push(ms / (1000 * 60 * 60 * 24));
+    days.push((new Date(n.mergedAt).getTime() - new Date(n.createdAt).getTime()) / 86_400_000);
   }
-  if (durations.length === 0) return null;
-  durations.sort((a, b) => a - b);
-  const mid = Math.floor(durations.length / 2);
-  return durations.length % 2 === 0
-    ? (durations[mid - 1] + durations[mid]) / 2
-    : durations[mid];
+  return medianDays(days);
+}
+
+function medianFirstResponseDays(
+  edges: NonNullable<NonNullable<GraphQLSearchData["recentIssuesTFR"]>["edges"]>
+): number | null {
+  const days: number[] = [];
+  for (const e of edges) {
+    const n = e.node;
+    if (!n?.createdAt) continue;
+    const firstComment = n.timelineItems?.nodes?.[0];
+    if (!firstComment?.createdAt) continue;
+    const ms = new Date(firstComment.createdAt).getTime() - new Date(n.createdAt).getTime();
+    if (ms >= 0) days.push(ms / 86_400_000);
+  }
+  return medianDays(days);
 }
 
 interface SearchAttemptResult {
@@ -117,7 +162,7 @@ async function attemptSearch(
     "prsMerged",
   ];
   const missing = aliases.filter((a) => {
-    const r = data[a];
+    const r = data[a] as SearchResult | undefined;
     return !r || typeof r.issueCount !== "number";
   });
 
@@ -144,6 +189,7 @@ export async function collectGitHubSearch(
     issuesClosedQ: `${repoQ} type:issue closed:>${since}`,
     prsOpenedQ: `${repoQ} type:pr created:>${since}`,
     prsMergedQ: `${repoQ} type:pr merged:>${since}`,
+    recentIssuesTFRQ: `${repoQ} type:issue created:>${since} sort:created-desc`,
   };
 
   let attemptResult: SearchAttemptResult = {
@@ -217,12 +263,16 @@ export async function collectGitHubSearch(
       ? prsMerged / prsOpened
       : null;
 
+  const tfrEdges = data.recentIssuesTFR?.edges ?? null;
+  const medianFirstResponse = tfrEdges !== null ? medianFirstResponseDays(tfrEdges) : null;
+
   return {
     source: "github-search",
     metrics: [
       { category: "G3", metricKey: "G3.1", rawValue: issuesOpened },
       { category: "G3", metricKey: "G3.2", rawValue: issuesClosed },
       { category: "G3", metricKey: "G3.3", rawValue: issueCloseRatio },
+      { category: "G3", metricKey: "G3.4", rawValue: medianFirstResponse },
       { category: "G4", metricKey: "G4.1", rawValue: prsOpened },
       { category: "G4", metricKey: "G4.2", rawValue: prsMerged },
       { category: "G4", metricKey: "G4.3", rawValue: prMergeRatio },
@@ -238,6 +288,7 @@ function nullMetrics() {
     { category: "G3", metricKey: "G3.1", rawValue: null },
     { category: "G3", metricKey: "G3.2", rawValue: null },
     { category: "G3", metricKey: "G3.3", rawValue: null },
+    { category: "G3", metricKey: "G3.4", rawValue: null },
     { category: "G4", metricKey: "G4.1", rawValue: null },
     { category: "G4", metricKey: "G4.2", rawValue: null },
     { category: "G4", metricKey: "G4.3", rawValue: null },

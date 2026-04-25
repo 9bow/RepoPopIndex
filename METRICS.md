@@ -277,7 +277,21 @@ qualityLikeScore = likes · max(0.3, hfQualityFactor)
 
 ### Reddit / Stack Overflow / YouTube (dark-launch)
 
-자격 정보가 있을 때만 동작하며, 현재는 종합 점수에 영향을 주지 않고 별도 Redis blob(`rpi:social:metrics:{analysisId}`)에 저장만 됩니다. config.ts에는 가중치가 매겨져 있지만 실제 collector가 제공하는 데이터는 카테고리 가중치 합 8/5/4/3 (HN/Reddit/SO/YouTube ≈ 40/25/20/15%) 분배에 따라 단계적으로 활성화될 예정입니다.
+Reddit은 자격 정보가 없으면 모든 메트릭이 null로 반환되어 분모에서 제외됩니다 (비례 재정규화). SO/YouTube는 자격 정보가 있더라도 3개월 기간 내 주요 OSS에서 최대 1건만 관측되는 매우 희소한 소스입니다.
+
+### S1 경험적 재보정 (2026-04 · n=25)
+
+25개 주요 OSS 저장소 3개월 기간 분포:
+
+| metricKey | p50 | p75 | p90 | p95 | max | 구 maxI | **신 maxI** |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `story_count` | 4 | 14 | 27 | 43 | 270 | 50 | **25** |
+| `total_points` | 12 | 55 | 334 | 532 | 2,087 | 2,000 | **400** |
+| `engagement` | 13.5 | 81 | 555 | 1,194 | 3,059 | 5,000 | **600** |
+| `so_question_count` | 0 | 0 | 1 | 1 | 1 | 50 | **3** |
+| `youtube_video_count` | 0 | 0 | 0 | 0 | 1 | 20 | **3** |
+
+**서브소스 가중치 조정:** HN/Reddit/SO/YouTube = 8/5/2/1.5 (기존 8/5/4/3). SO와 YouTube의 0값이 분모에 남아 소셜 점수 상한을 ~53%로 제한하는 현상을 완화하기 위해 희소 소스의 가중치를 절반으로 줄임. Reddit은 null 시 분모에서 제외되므로 변경 없음. Reddit 제외 시 HN 비중: 8/(8+2+1.5) ≈ 70%.
 
 ---
 
@@ -326,6 +340,21 @@ qualityLikeScore = likes · max(0.3, hfQualityFactor)
 | `G7.1` community health | G7 | 100 | 1 | ✓ | ✓ | |
 | `G8.1` star quality mass | G8 | 200,000 | 3 | ✓ | | |
 | `G8.2` arrival rate | G8 | 100 | 2 | | | |
+| `G3.4` median TFR | G3 | 7 | 1 | | | ✓ |
+| `npm_downloads` | G5 | 50,000,000 | 2 | | | |
+| `pypi_downloads` | G5 | 10,000,000 | 2 | | | |
+| `story_count` | S1 | 25 | 3 | | | |
+| `total_points` | S1 | 400 | 3 | | | |
+| `engagement` | S1 | 600 | 2 | | | |
+| `reddit_post_count` | S1 | 20 | 2 | | | |
+| `reddit_score_sum` | S1 | 2,000 | 2 | | | |
+| `reddit_comment_sum` | S1 | 2,000 | 1 | | | |
+| `so_question_count` | S1 | 3 | 1 | | | |
+| `so_answered_ratio` | S1 | 1.0 | 0.5 | | ✓ | |
+| `so_score_sum` | S1 | 20 | 0.5 | | | |
+| `youtube_video_count` | S1 | 3 | 0.5 | | | |
+| `youtube_view_sum` | S1 | 50,000 | 0.5 | | | |
+| `youtube_like_sum` | S1 | 1,000 | 0.5 | | | |
 
 ### 7.2 Hugging Face 지표 설정
 
@@ -337,6 +366,7 @@ qualityLikeScore = likes · max(0.3, hfQualityFactor)
 | `trendingScore` | H1 | 100 | 1 | | | |
 | `spaces_count` | H2 | 100 | 2 | ✓ | | |
 | `inferenceProviderCount` | H2 | 10 | 1 | ✓ | | |
+| `derived_models_count` | H2 | 500 | 1 | ✓ | | |
 | `commit_count` | H3 | 500 | 2 | | | |
 | `unique_contributors` | H3 | 50 | 2 | | | |
 | `days_since_last_commit` | H3 | 365 | 1 | | | ✓ |
@@ -494,7 +524,8 @@ compositeScore = 6,350 / 100 = 63.5
 ### 9.6 GitHub Social Buzz (S1)
 
 - **가설:** "HN 노출 + Reddit/SO/YouTube 언급 = 코드 리포 내부 신호와 *독립한* 외부 검증." 인프라 라이브러리는 HN 점수가 낮아도 dependents가 압도적인 경우가 있어 (Adoption과의 *해리*) 카테고리 분리가 가치를 가집니다.
-- **메트릭:** `story_count`, `total_points`, `engagement`(HN), + Reddit/SO/YouTube dark-launch.
+- **메트릭:** `story_count`, `total_points`, `engagement`(HN), + Reddit/SO/YouTube (활성 여부에 따라 비례 재정규화).
+- **단일 소스 현실:** 25개 주요 OSS 실측 결과, Reddit은 거의 항상 null(자격 정보 미설정), SO/YouTube는 3개월 기간 내 최대 1건 수준. 실제로는 HN이 Social Buzz의 유일한 안정적 신호입니다. SO/YouTube가 모두 0이면 분모에 남아 소셜 점수 상한이 ~53%로 제한되는 현상을 완화하기 위해 희소 소스의 가중치를 절반으로 조정했습니다 (§6 재보정 표 참조).
 - **한계:** HN 검색은 URL 매칭 기반이므로 별칭 리포지토리·rewrite된 URL은 누락. 기간 외 인기 글은 자동으로 빠집니다.
 - **Goodhart 위험:** "HN에 자기 글 올리고 친구들이 upvote" → HN 알고리즘 자체의 anti-gaming(early flag, voting ring detection)이 1차 방어. burstDetected 플래그는 별 폭증에만 적용되고 HN에는 없으므로, HN 점수는 단독으로 보지 말고 카테고리 점수 + top_story 카드로 검증합니다.
 

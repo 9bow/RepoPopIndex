@@ -37,18 +37,40 @@ interface HfModelInfo {
   cardData?: {
     license?: string;
     description?: string;
+    intended_use?: unknown;
+    usage?: unknown;
+    training_data?: unknown;
+    datasets?: unknown[];
+    limitations?: unknown;
+    bias?: unknown;
+    model_index?: unknown[];
+    citation?: unknown;
+    bibtex_citation?: unknown;
+    co2_eq_emissions?: unknown;
     [key: string]: unknown;
   };
   [key: string]: unknown;
 }
 
-function computeCardScore(cardData: HfModelInfo["cardData"]): number {
-  if (!cardData) return 0;
-  const hasDescription = typeof cardData.description === "string" && cardData.description.length > 0;
-  const hasLicense = typeof cardData.license === "string" && cardData.license.length > 0;
-  if (hasDescription && hasLicense) return 1;
-  if (hasDescription || hasLicense) return 0.5;
-  return 0;
+function computeCardScore(cardData: HfModelInfo["cardData"]): {
+  score: number;
+  breakdown: Record<string, boolean>;
+} {
+  if (!cardData) return { score: 0, breakdown: {} };
+
+  const breakdown: Record<string, boolean> = {
+    license: typeof cardData.license === "string" && cardData.license.length > 0,
+    description: typeof cardData.description === "string" && cardData.description.length > 0,
+    intended_use: Boolean(cardData.intended_use ?? cardData.usage),
+    training_data: Boolean(cardData.training_data) || (Array.isArray(cardData.datasets) && cardData.datasets.length > 0),
+    limitations: Boolean(cardData.limitations ?? cardData.bias),
+    evaluation_results: Array.isArray(cardData.model_index) && cardData.model_index.length > 0,
+    citation: Boolean(cardData.citation ?? cardData.bibtex_citation),
+    co2_eq_emissions: Boolean(cardData.co2_eq_emissions),
+  };
+
+  const checkedCount = Object.values(breakdown).filter(Boolean).length;
+  return { score: checkedCount / 8, breakdown };
 }
 
 async function fetchCommits(
@@ -189,7 +211,7 @@ export async function collectHuggingFace(
     ? Object.keys(info.inferenceProviderMapping ?? {}).length
     : 0;
   const libraryName = info.library_name ?? null;
-  const cardScore = computeCardScore(info.cardData);
+  const { score: cardScore, breakdown: cardBreakdown } = computeCardScore(info.cardData);
 
   // HF quality factor for likes (guard against NaN when likes=0)
   const likeDenom = Math.log(1 + likes * 100);
@@ -212,6 +234,29 @@ export async function collectHuggingFace(
     discussionData = await fetchDiscussions(baseUrl);
   } catch {
     // non-fatal: leave zeroes
+  }
+
+  // Step 4: derived models count (for models only)
+  let derivedModelsCount = 0;
+  if (isModel) {
+    try {
+      await waitForRateLimit("huggingface");
+      const derivedRes = await fetchWithRetry(
+        `${HF_API}/models?filter=finetuned_from%3A${encodeURIComponent(`${owner}/${repo}`)}&limit=1`,
+        { headers }
+      );
+      if (derivedRes.ok) {
+        const totalHeader = derivedRes.headers.get("x-total-count");
+        if (totalHeader) {
+          derivedModelsCount = parseInt(totalHeader, 10) || 0;
+        } else {
+          const derivedData = await derivedRes.json() as unknown[];
+          derivedModelsCount = Array.isArray(derivedData) ? derivedData.length : 0;
+        }
+      }
+    } catch {
+      // non-fatal
+    }
   }
 
   return {
@@ -261,9 +306,10 @@ export async function collectHuggingFace(
         rawJson: libraryName,
       },
       {
-        category: "H5",
+        category: "H4",
         metricKey: "card_score",
         rawValue: cardScore,
+        rawJson: { breakdown: cardBreakdown },
       },
       {
         category: "H3",
@@ -289,6 +335,11 @@ export async function collectHuggingFace(
         category: "H4",
         metricKey: "pr_count",
         rawValue: discussionData.prCount,
+      },
+      {
+        category: "H2",
+        metricKey: "derived_models_count",
+        rawValue: derivedModelsCount,
       },
     ],
   };

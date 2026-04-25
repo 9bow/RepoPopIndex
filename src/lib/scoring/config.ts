@@ -44,6 +44,7 @@ export const GITHUB_METRICS: MetricConfig[] = [
   { key: "G3.1", category: "G3", maxI: 200, weight: 1, cumulative: false },
   { key: "G3.2", category: "G3", maxI: 200, weight: 1, cumulative: false },
   { key: "G3.3", category: "G3", maxI: 1.0, weight: 2, cumulative: false, linear: true },
+  { key: "G3.4", category: "G3", maxI: 7, weight: 1, cumulative: false, inverse: true },
   // G4: PR Activity (from github-search)
   { key: "G4.1", category: "G4", maxI: 100, weight: 1, cumulative: false },
   { key: "G4.2", category: "G4", maxI: 100, weight: 2, cumulative: false },
@@ -55,6 +56,8 @@ export const GITHUB_METRICS: MetricConfig[] = [
   { key: "G5.2", category: "G5", maxI: 90, weight: 1, cumulative: false, linear: true, inverse: true },
   { key: "G5.3", category: "G5", maxI: 1000000, weight: 2, cumulative: false },
   { key: "G5.4", category: "G5", maxI: 200, weight: 0, cumulative: false },
+  { key: "npm_downloads", category: "G5", maxI: 50000000, weight: 2, cumulative: false },
+  { key: "pypi_downloads", category: "G5", maxI: 10000000, weight: 2, cumulative: false },
   // G6: Dependency Adoption (from github-scraper)
   // npm-scale ecosystems have 10M+ dependents (express ~60M); 100k saturated everyone.
   { key: "G6.1", category: "G6", maxI: 5000000, weight: 3, cumulative: true },
@@ -63,27 +66,38 @@ export const GITHUB_METRICS: MetricConfig[] = [
   // G8: Star Quality (from star-quality)
   { key: "G8.1", category: "G8", maxI: 200000, weight: 3, cumulative: true },
   { key: "G8.2", category: "G8", maxI: 100, weight: 2, cumulative: false },
-  // S1: Social Buzz — 4 sub-sources with target share HN 40 / Reddit 25 / SO 20 / YouTube 15.
-  // Sub-source totals (summed metric weights) chosen to approximate that split:
-  // HN total=8, Reddit total=5, StackOverflow total=4, YouTube total=3 → 8/5/4/3 of 20 = 40/25/20/15%.
-  // Missing sub-source metrics are dropped from both numerator and denominator at the
-  // category level (see category-scores.ts), giving proportional re-normalization for free.
-  // HN sub-source (weight share ~40%)
-  { key: "story_count", category: "S1", maxI: 50, weight: 3, cumulative: false },
-  { key: "total_points", category: "S1", maxI: 2000, weight: 3, cumulative: false },
-  { key: "engagement", category: "S1", maxI: 5000, weight: 2, cumulative: false },
-  // Reddit sub-source (weight share ~25%)
+  // S1: Social Buzz — 4 sub-sources with target share HN 48 / Reddit 30 / SO 12 / YouTube 9.
+  // Weights revised from the original 40/25/20/15 design based on empirical calibration
+  // across 25 major OSS repos (3-month window, April 2026):
+  //   - Reddit is dark-launched (credentials absent) → almost always null, excluded from denominator
+  //   - SO/YouTube are sparse: max observed = 1 item per source per 3-month period
+  //   - HN is the only reliable signal in practice
+  // SO and YouTube weights halved (→ 2 and 1.5 total) to reduce denominator drag when
+  // these sources return zeros (not null). Reddit kept at 5 for future activation.
+  // New sub-source totals: HN=8, Reddit=5, SO=2, YT=1.5 → without Reddit: HN=69.6% of ceiling.
+  //
+  // maxI calibration from empirical p90 across 25 repos (period=3m):
+  //   story_count: p90=27, p95=43 → maxI=25 (p90 ≈ saturation)
+  //   total_points: p90=334         → maxI=400
+  //   engagement:   p90=555         → maxI=600
+  //   so_question_count: max=1      → maxI=3  (1 question ≈ 0.5 normalized)
+  //   youtube_video_count: max=1    → maxI=3
+  // HN sub-source (weight share ~48% without Reddit, ~40% with Reddit)
+  { key: "story_count", category: "S1", maxI: 25, weight: 3, cumulative: false },
+  { key: "total_points", category: "S1", maxI: 400, weight: 3, cumulative: false },
+  { key: "engagement", category: "S1", maxI: 600, weight: 2, cumulative: false },
+  // Reddit sub-source (weight share ~30% without others; dark-launched, usually null → excluded)
   { key: "reddit_post_count", category: "S1", maxI: 20, weight: 2, cumulative: false },
   { key: "reddit_score_sum", category: "S1", maxI: 2000, weight: 2, cumulative: false },
   { key: "reddit_comment_sum", category: "S1", maxI: 2000, weight: 1, cumulative: false },
-  // StackOverflow sub-source (weight share ~20%)
-  { key: "so_question_count", category: "S1", maxI: 50, weight: 2, cumulative: false },
-  { key: "so_answered_ratio", category: "S1", maxI: 1.0, weight: 1, cumulative: false, linear: true },
-  { key: "so_score_sum", category: "S1", maxI: 200, weight: 1, cumulative: false },
-  // YouTube sub-source (weight share ~15%)
-  { key: "youtube_video_count", category: "S1", maxI: 20, weight: 1, cumulative: false },
-  { key: "youtube_view_sum", category: "S1", maxI: 1000000, weight: 1, cumulative: false },
-  { key: "youtube_like_sum", category: "S1", maxI: 20000, weight: 1, cumulative: false },
+  // StackOverflow sub-source (weight halved — max 1 question/3m across 25 major repos)
+  { key: "so_question_count", category: "S1", maxI: 3, weight: 1, cumulative: false },
+  { key: "so_answered_ratio", category: "S1", maxI: 1.0, weight: 0.5, cumulative: false, linear: true },
+  { key: "so_score_sum", category: "S1", maxI: 20, weight: 0.5, cumulative: false },
+  // YouTube sub-source (weight halved — max 1 video/3m across 25 major repos)
+  { key: "youtube_video_count", category: "S1", maxI: 3, weight: 0.5, cumulative: false },
+  { key: "youtube_view_sum", category: "S1", maxI: 50000, weight: 0.5, cumulative: false },
+  { key: "youtube_like_sum", category: "S1", maxI: 1000, weight: 0.5, cumulative: false },
 ];
 
 export const HF_METRICS: MetricConfig[] = [
@@ -95,6 +109,7 @@ export const HF_METRICS: MetricConfig[] = [
   // H2: Integration (from huggingface)
   { key: "spaces_count", category: "H2", maxI: 100, weight: 2, cumulative: true },
   { key: "inferenceProviderCount", category: "H2", maxI: 10, weight: 1, cumulative: true },
+  { key: "derived_models_count", category: "H2", maxI: 500, weight: 1, cumulative: true },
   // H3: Activity (from huggingface)
   { key: "commit_count", category: "H3", maxI: 500, weight: 2, cumulative: false },
   { key: "unique_contributors", category: "H3", maxI: 50, weight: 2, cumulative: false },
@@ -103,23 +118,23 @@ export const HF_METRICS: MetricConfig[] = [
   { key: "discussion_count", category: "H4", maxI: 100, weight: 1, cumulative: false },
   { key: "pr_count", category: "H4", maxI: 50, weight: 1, cumulative: false },
   { key: "card_score", category: "H4", maxI: 1.0, weight: 1, cumulative: true, linear: true },
-  // S1: Social Buzz — see GITHUB_METRICS S1 block for the 40/25/20/15 split rationale.
-  // HN sub-source (weight share ~40%)
-  { key: "story_count", category: "S1", maxI: 50, weight: 3, cumulative: false },
-  { key: "total_points", category: "S1", maxI: 2000, weight: 3, cumulative: false },
-  { key: "engagement", category: "S1", maxI: 5000, weight: 2, cumulative: false },
-  // Reddit sub-source (weight share ~25%)
+  // S1: Social Buzz — see GITHUB_METRICS S1 block for calibration rationale.
+  // HN sub-source (weight share ~48% without Reddit, ~40% with Reddit)
+  { key: "story_count", category: "S1", maxI: 25, weight: 3, cumulative: false },
+  { key: "total_points", category: "S1", maxI: 400, weight: 3, cumulative: false },
+  { key: "engagement", category: "S1", maxI: 600, weight: 2, cumulative: false },
+  // Reddit sub-source (dark-launched, usually null → excluded from denominator)
   { key: "reddit_post_count", category: "S1", maxI: 20, weight: 2, cumulative: false },
   { key: "reddit_score_sum", category: "S1", maxI: 2000, weight: 2, cumulative: false },
   { key: "reddit_comment_sum", category: "S1", maxI: 2000, weight: 1, cumulative: false },
-  // StackOverflow sub-source (weight share ~20%)
-  { key: "so_question_count", category: "S1", maxI: 50, weight: 2, cumulative: false },
-  { key: "so_answered_ratio", category: "S1", maxI: 1.0, weight: 1, cumulative: false, linear: true },
-  { key: "so_score_sum", category: "S1", maxI: 200, weight: 1, cumulative: false },
-  // YouTube sub-source (weight share ~15%)
-  { key: "youtube_video_count", category: "S1", maxI: 20, weight: 1, cumulative: false },
-  { key: "youtube_view_sum", category: "S1", maxI: 1000000, weight: 1, cumulative: false },
-  { key: "youtube_like_sum", category: "S1", maxI: 20000, weight: 1, cumulative: false },
+  // StackOverflow sub-source (weight halved — max 1 question/3m across 25 major repos)
+  { key: "so_question_count", category: "S1", maxI: 3, weight: 1, cumulative: false },
+  { key: "so_answered_ratio", category: "S1", maxI: 1.0, weight: 0.5, cumulative: false, linear: true },
+  { key: "so_score_sum", category: "S1", maxI: 20, weight: 0.5, cumulative: false },
+  // YouTube sub-source (weight halved — max 1 video/3m across 25 major repos)
+  { key: "youtube_video_count", category: "S1", maxI: 3, weight: 0.5, cumulative: false },
+  { key: "youtube_view_sum", category: "S1", maxI: 50000, weight: 0.5, cumulative: false },
+  { key: "youtube_like_sum", category: "S1", maxI: 1000, weight: 0.5, cumulative: false },
 ];
 
 export const GITHUB_CATEGORIES: CategoryConfig[] = [
@@ -133,13 +148,13 @@ export const GITHUB_CATEGORIES: CategoryConfig[] = [
     id: "G-Community",
     name: "Community",
     weight: 20,
-    metricKeys: ["G3.1", "G3.2", "G3.3", "G4.1", "G4.2", "G4.3", "G4.4", "G4.5"],
+    metricKeys: ["G3.1", "G3.2", "G3.3", "G3.4", "G4.1", "G4.2", "G4.3", "G4.4", "G4.5"],
   },
   {
     id: "G-Adoption",
     name: "Adoption",
     weight: 25,
-    metricKeys: ["G6.1", "G5.1", "G5.2", "G5.3", "G5.4"],
+    metricKeys: ["G6.1", "G5.1", "G5.2", "G5.3", "G5.4", "npm_downloads", "pypi_downloads"],
   },
   {
     id: "G-Popularity",
@@ -185,7 +200,7 @@ export const HF_CATEGORIES: CategoryConfig[] = [
     id: "H-Integration",
     name: "Integration",
     weight: 20,
-    metricKeys: ["spaces_count", "inferenceProviderCount"],
+    metricKeys: ["spaces_count", "inferenceProviderCount", "derived_models_count"],
   },
   {
     id: "H-Activity",

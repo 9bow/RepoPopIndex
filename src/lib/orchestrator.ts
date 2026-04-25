@@ -77,12 +77,14 @@ export async function runAnalysis(params: AnalysisParams): Promise<void> {
         { collectGitHubRest },
         { collectGitHubDependents },
         { analyzeStarQuality },
+        { collectPackageDownloads },
       ] = await Promise.all([
         import("./collectors/github-graphql"),
         import("./collectors/github-search"),
         import("./collectors/github-rest"),
         import("./collectors/github-scraper"),
         import("./collectors/star-quality"),
+        import("./collectors/package-downloads"),
       ]);
 
       await updateStatus(analysisId, "collecting", 10, "Collecting GitHub metrics...");
@@ -98,6 +100,8 @@ export async function runAnalysis(params: AnalysisParams): Promise<void> {
           .then(async (r) => { await updateStatus(analysisId, "collecting", 45, "Dependents done"); return r; }),
         withTimeout(analyzeStarQuality(owner, repo), COLLECTOR_TIMEOUT)
           .then(async (r) => { await updateStatus(analysisId, "collecting", 65, "Star quality done"); return r; }),
+        withTimeout(collectPackageDownloads(owner, repo), COLLECTOR_TIMEOUT)
+          .then(async (r) => { await updateStatus(analysisId, "collecting", 67, "Package downloads done"); return r; }),
       ]);
 
       for (const result of settled) {
