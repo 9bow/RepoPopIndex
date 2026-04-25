@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/contexts/locale-context";
+import { parseRepoUrl } from "@/lib/parsers/url-parser";
 
 const PERIODS = ["1w", "1m", "3m", "6m", "1y"] as const;
 const PERIOD_LABELS: Record<string, string> = {
@@ -32,41 +33,24 @@ export function UrlInput() {
   const platform = url.length > 5 ? detectPlatform(url) : null;
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    (e: React.FormEvent) => {
       e.preventDefault();
       setError(null);
 
-      if (!url.trim()) {
+      const trimmed = url.trim();
+      if (!trimmed) {
         setError(d.home.errUrlEmpty);
         return;
       }
 
       setLoading(true);
       try {
-        const res = await fetch("/api/analyze", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: url.trim(), period }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          if (res.status === 503) {
-            setError(d.home.err503);
-            return;
-          }
-          const msg = data.error ?? data.message;
-          setError(
-            typeof msg === "string" && msg ? msg : d.home.errAnalysis
-          );
-          return;
-        }
-
-        router.push(`/report/${data.id}`);
-      } catch {
-        setError(d.home.errNetwork);
-      } finally {
+        const parsed = parseRepoUrl(trimmed);
+        router.push(
+          `/report/${parsed.platform}/${parsed.owner}/${parsed.repo}/${period}`
+        );
+      } catch (err) {
+        setError(err instanceof Error ? err.message : d.home.errAnalysis);
         setLoading(false);
       }
     },
