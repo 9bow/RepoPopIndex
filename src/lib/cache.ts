@@ -1,3 +1,12 @@
+// Cache key namespaces (Upstash Redis):
+//   rpi:report:{platform}:{owner}/{repo}:{period}   — canonical analysis report
+//   rpi:progress:{analysisId}                        — in-flight progress updates
+//   rpi:rate:{source}                                — per-source rate-limit counters
+//   rpi:social:{source}:{platform}:{owner}/{repo}:{period} — per-collector cache
+//   rpi:social:metrics:{analysisId}                  — dark-launch social metrics blob
+//   rpi:social:reddit:token{,:lock}                  — Reddit OAuth token + refresh lock
+//   rpi:social:youtube:quota-exhausted:{YYYY-MM-DD}  — YouTube quota circuit breaker
+
 import { redis } from "./rate-limiter";
 
 export async function cacheGet<T>(key: string): Promise<T | null> {
