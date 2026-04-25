@@ -62,7 +62,7 @@ export default async function RootLayout({
         className={`min-h-full flex flex-col bg-background text-foreground font-sans`}
       >
         <LocaleProvider locale={locale}>
-          <div className="pointer-events-auto fixed right-2 top-2 z-50 sm:right-4 sm:top-4 text-xs sm:text-sm">
+          <div className="pointer-events-auto fixed right-2 top-2 z-50 sm:right-4 sm:top-4 text-xs sm:text-sm print:hidden">
             <LanguageSwitcher />
           </div>
           {children}

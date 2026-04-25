@@ -153,3 +153,66 @@
   }
   .tabular-nums { font-variant-numeric: tabular-nums; }
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  /* Force colors so charts/score gauges keep their hues on paper */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Force light theme on print regardless of user preference */
+  :root,
+  .dark {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.18 0.012 60);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.18 0.012 60);
+    --muted-foreground: oklch(0.40 0.015 60);
+    --border: oklch(0.85 0.01 80);
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    background-image: none !important;
+    color: #000;
+  }
+
+  /* Hide interactive / non-essential UI on print */
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Expand collapsibles so all metric details print */
+  [data-state="closed"] > [data-state="closed"],
+  [data-slot="collapsible-content"] {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Don't break cards or sections across pages mid-component */
+  [class*="card"],
+  section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Constrain large visualizations to a printable inline size */
+  .recharts-responsive-container,
+  .recharts-wrapper,
+  svg.recharts-surface {
+    max-width: 100% !important;
+    max-height: 360px !important;
+  }
+
+  main {
+    padding-top: 0 !important;
+  }
+}
