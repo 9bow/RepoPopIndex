@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import "./globals.css";
 import { LocaleProvider } from "@/contexts/locale-context";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { TooltipProvider } from "./tooltip-provider";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 const geistSans = Geist({
@@ -62,10 +63,12 @@ export default async function RootLayout({
         className={`min-h-full flex flex-col bg-background text-foreground font-sans`}
       >
         <LocaleProvider locale={locale}>
-          <div className="pointer-events-auto fixed right-2 top-2 z-50 sm:right-4 sm:top-4 text-xs sm:text-sm print:hidden">
-            <LanguageSwitcher />
-          </div>
-          {children}
+          <TooltipProvider>
+            <div className="pointer-events-auto fixed right-2 top-2 z-50 sm:right-4 sm:top-4 text-xs sm:text-sm print:hidden">
+              <LanguageSwitcher />
+            </div>
+            {children}
+          </TooltipProvider>
         </LocaleProvider>
       </body>
     </html>
