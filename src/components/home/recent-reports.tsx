@@ -61,7 +61,7 @@ export function RecentReports({ items }: RecentReportsProps) {
                   </Badge>
                   <span>{item.period}</span>
                   <span>·</span>
-                  <span>{relativeTime(item.completedAt)}</span>
+                  <span suppressHydrationWarning>{relativeTime(item.completedAt)}</span>
                 </div>
               </div>
               <div className="ml-3 flex shrink-0 flex-col items-end gap-0.5">

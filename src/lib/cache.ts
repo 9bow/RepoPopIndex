@@ -45,9 +45,11 @@ export const PROGRESS_TTL = 600;
 
 // Recent reports list (Phase 4): rolling window of the last finalized analyses,
 // shown on the home page. Capped at 20 entries server-side, exposed up to 12.
+// Entries older than 24 hours are pruned on read.
 export const RECENT_REPORTS_KEY = "rpi:recent:reports";
 const RECENT_REPORTS_MAX = 20;
 const RECENT_REPORTS_LIMIT_CAP = 12;
+const RECENT_REPORTS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 export interface RecentReportEntry {
   platform: Platform;
@@ -110,15 +112,27 @@ export async function getRecentReports(
   const raw = await redis.lrange<RecentReportEntry | string>(
     RECENT_REPORTS_KEY,
     0,
-    cap - 1
+    RECENT_REPORTS_MAX - 1
   );
-  const out: RecentReportEntry[] = [];
+  const now = Date.now();
+  const fresh: RecentReportEntry[] = [];
+  const stale: (RecentReportEntry | string)[] = [];
   for (const item of raw) {
     const parsed =
       typeof item === "string" ? safeParseEntry(item) : (item as RecentReportEntry);
-    if (parsed) out.push(parsed);
+    if (!parsed) continue;
+    if (now - new Date(parsed.completedAt).getTime() <= RECENT_REPORTS_MAX_AGE_MS) {
+      fresh.push(parsed);
+    } else {
+      stale.push(item);
+    }
   }
-  return out;
+  if (stale.length > 0) {
+    await Promise.all(
+      stale.map((item) => redis.lrem(RECENT_REPORTS_KEY, 0, item as never))
+    );
+  }
+  return fresh.slice(0, cap);
 }
 
 function safeParseEntry(raw: string): RecentReportEntry | null {

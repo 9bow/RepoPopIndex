@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
@@ -18,10 +19,10 @@ export default async function AboutPage() {
   const a = d.about;
 
   const sections = [
-    { title: a.missionTitle, body: a.missionBody },
-    { title: a.dataSourcesTitle, body: a.dataSourcesBody },
-    { title: a.openSourceTitle, body: a.openSourceBody },
-    { title: a.contactTitle, body: a.contactBody },
+    { id: "mission", title: a.missionTitle, body: a.missionBody },
+    { id: "data-sources", title: a.dataSourcesTitle, body: a.dataSourcesBody },
+    { id: "open-source", title: a.openSourceTitle, body: a.openSourceBody, seeAlso: { href: "/methodology", label: d.nav.methodology } },
+    { id: "contact", title: a.contactTitle, body: a.contactBody, href: `https://${a.contactBody}` },
   ];
 
   return (
@@ -34,10 +35,21 @@ export default async function AboutPage() {
       </header>
 
       <div className="space-y-8">
-        {sections.map(({ title, body }) => (
-          <section key={title} className="space-y-2">
+        {sections.map(({ id, title, body, href, seeAlso }) => (
+          <section key={id} id={id} className="space-y-2">
             <h2 className="text-lg font-semibold font-display tracking-tight">{title}</h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {href ? (
+                <a href={href} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                  {body}
+                </a>
+              ) : body}
+            </p>
+            {seeAlso && (
+              <Link href={seeAlso.href} className="inline-block text-xs text-muted-foreground hover:text-foreground transition-colors">
+                → {seeAlso.label}
+              </Link>
+            )}
           </section>
         ))}
       </div>

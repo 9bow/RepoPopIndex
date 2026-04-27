@@ -18,11 +18,11 @@ export default async function MethodologyPage() {
   const m = d.methodology;
 
   const sections = [
-    { title: m.categoriesTitle, body: m.categoriesBody },
-    { title: m.socialBuzzTitle, body: m.socialBuzzBody },
-    { title: m.starAbuseTitle, body: m.starAbuseBody },
-    { title: m.formulaTitle, body: m.formulaBody },
-    { title: m.partialTitle, body: m.partialBody },
+    { id: "categories", title: m.categoriesTitle, body: m.categoriesBody },
+    { id: "social-buzz", title: m.socialBuzzTitle, body: m.socialBuzzBody },
+    { id: "star-abuse", title: m.starAbuseTitle, body: m.starAbuseBody },
+    { id: "formula", title: m.formulaTitle, body: m.formulaBody },
+    { id: "partial", title: m.partialTitle, body: m.partialBody },
   ];
 
   return (
@@ -35,8 +35,8 @@ export default async function MethodologyPage() {
       </header>
 
       <div className="space-y-8">
-        {sections.map(({ title, body }) => (
-          <section key={title} className="space-y-2">
+        {sections.map(({ id, title, body }) => (
+          <section key={id} id={id} className="space-y-2">
             <h2 className="text-lg font-semibold font-display tracking-tight">{title}</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
           </section>
