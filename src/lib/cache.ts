@@ -109,30 +109,39 @@ export async function getRecentReports(
 ): Promise<RecentReportEntry[]> {
   const cap = Math.min(Math.max(0, limit), RECENT_REPORTS_LIMIT_CAP);
   if (cap === 0) return [];
-  const raw = await redis.lrange<RecentReportEntry | string>(
-    RECENT_REPORTS_KEY,
-    0,
-    RECENT_REPORTS_MAX - 1
-  );
-  const now = Date.now();
-  const fresh: RecentReportEntry[] = [];
-  const stale: (RecentReportEntry | string)[] = [];
-  for (const item of raw) {
-    const parsed =
-      typeof item === "string" ? safeParseEntry(item) : (item as RecentReportEntry);
-    if (!parsed) continue;
-    if (now - new Date(parsed.completedAt).getTime() <= RECENT_REPORTS_MAX_AGE_MS) {
-      fresh.push(parsed);
-    } else {
-      stale.push(item);
-    }
-  }
-  if (stale.length > 0) {
-    await Promise.all(
-      stale.map((item) => redis.lrem(RECENT_REPORTS_KEY, 0, item as never))
+  try {
+    const raw = await redis.lrange<RecentReportEntry | string>(
+      RECENT_REPORTS_KEY,
+      0,
+      RECENT_REPORTS_MAX - 1
     );
+    const now = Date.now();
+    const fresh: RecentReportEntry[] = [];
+    const stale: (RecentReportEntry | string)[] = [];
+    for (const item of raw) {
+      const parsed =
+        typeof item === "string" ? safeParseEntry(item) : (item as RecentReportEntry);
+      if (!parsed) continue;
+      if (now - new Date(parsed.completedAt).getTime() <= RECENT_REPORTS_MAX_AGE_MS) {
+        fresh.push(parsed);
+      } else {
+        stale.push(item);
+      }
+    }
+    if (stale.length > 0) {
+      await Promise.all(
+        stale.map((item) => redis.lrem(RECENT_REPORTS_KEY, 0, item as never))
+      );
+    }
+    return fresh.slice(0, cap);
+  } catch (error) {
+    // Recent reports is a non-critical home-page decoration. If Redis is
+    // unavailable or misconfigured (e.g. REDIS_URL unset on a preview
+    // deployment, which makes the Upstash client throw "Invalid URL"),
+    // degrade to an empty list rather than failing the whole page render.
+    console.error("getRecentReports: Redis unavailable, returning []:", error);
+    return [];
   }
-  return fresh.slice(0, cap);
 }
 
 function safeParseEntry(raw: string): RecentReportEntry | null {
