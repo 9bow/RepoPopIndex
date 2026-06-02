@@ -5,6 +5,7 @@ import "./globals.css";
 import { LocaleProvider } from "@/contexts/locale-context";
 import { TopNav } from "@/components/layout/TopNav";
 import { BottomLinks } from "@/components/layout/BottomLinks";
+import { BuildInfo } from "@/components/layout/BuildInfo";
 import { TooltipProvider } from "./tooltip-provider";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
@@ -68,6 +69,7 @@ export default async function RootLayout({
             <TopNav />
             {children}
             <BottomLinks />
+            <BuildInfo />
           </TooltipProvider>
         </LocaleProvider>
       </body>
