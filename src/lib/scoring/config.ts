@@ -101,7 +101,11 @@ export const GITHUB_METRICS: MetricConfig[] = [
 ];
 
 export const HF_METRICS: MetricConfig[] = [
-  // H1: Popularity (from huggingface)
+  // H1: Popularity / Downloads (from Hugging Face Hub API).
+  // The Hub's download stat is a server-side count of HTTP GET/HEAD requests
+  // to library-specific query files. It is a strong usage/adoption signal, but
+  // not a unique-user count and not maintainer activity; keep it in
+  // H-Downloads rather than H-Activity.
   { key: "likes", category: "H1", maxI: 5000, weight: 2, cumulative: true },
   { key: "downloads", category: "H1", maxI: 10000000, weight: 3, cumulative: false },
   { key: "downloadsAllTime", category: "H1", maxI: 100000000, weight: 2, cumulative: true },

@@ -270,15 +270,15 @@ const METRIC_COPY: Record<
   downloads: {
     short: { en: "Recent downloads", ko: "최근 다운로드" },
     desc: {
-      en: "Download count in a recent window from HF stats (when available).",
-      ko: "HF에서 제공하는 최근 기간 다운로드 수입니다.",
+      en: "Recent HF Hub download stat. HF counts server-side GET/HEAD requests to selected query files, so this is usage traffic, not unique users.",
+      ko: "HF Hub의 최근 다운로드 통계입니다. 서버가 지정 query 파일에 대한 GET/HEAD 요청을 집계하므로 고유 사용자 수가 아니라 사용 트래픽 신호입니다.",
     },
   },
   downloadsAllTime: {
     short: { en: "All-time downloads", ko: "누적 다운로드" },
     desc: {
-      en: "Cumulative download count (model card / API).",
-      ko: "누적 다운로드 수(카드·API)입니다.",
+      en: "Cumulative HF Hub download stat. It is treated as a stock adoption signal and discounted by the recency factor.",
+      ko: "HF Hub의 누적 다운로드 통계입니다. 누적 채택 신호로 보며 recency factor로 하향 보정합니다.",
     },
   },
   trendingScore: {

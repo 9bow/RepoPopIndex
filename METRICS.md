@@ -241,8 +241,8 @@ else:
 | metricKey | Category | 정의 | 정규화 maxI |
 |---|---|---|---|
 | `likes` | H1/Popularity | 좋아요 수 (cumulative) | 5,000 (log) |
-| `downloads` | H1/Downloads | 최근 30일 다운로드 | 10,000,000 (log) |
-| `downloadsAllTime` | H1/Downloads | 누적 다운로드 (cumulative) | 100,000,000 (log) |
+| `downloads` | H1/Downloads | HF 공식 다운로드 통계, 최근 30일 | 10,000,000 (log) |
+| `downloadsAllTime` | H1/Downloads | HF 공식 다운로드 통계, 생성 이후 누적 (cumulative) | 100,000,000 (log) |
 | `trendingScore` | H1/Popularity | HF 트렌딩 점수 | 100 (log) |
 | `spaces_count` | H2/Integration | 모델을 사용하는 Spaces 수 (cumulative) | 100 (log) |
 | `inferenceProviderCount` | H2 | Inference provider 매핑 수 (cumulative) | 10 (log) |
@@ -252,6 +252,8 @@ else:
 | `discussion_count` | H4/Community | discussions API 총 수 | 100 (log) |
 | `pr_count` | H4 | discussions 중 `type=pull_request` | 50 (log) |
 | `card_score` | H4 | description+license 둘 다=1.0, 하나만=0.5, 없음=0 | 1.0 (linear, cumulative) |
+
+HF 다운로드 통계는 Hub가 파일 제공 시 서버 쪽에서 집계합니다. 모델 저장소는 라이브러리별 query file을 기준으로 카운트되며, 기본 query file은 `config.json`, `config.yaml`, `hyperparams.yaml`, `params.json`, `meta.yaml` 계열입니다. `GET`과 `HEAD` 요청이 모두 카운트되므로 이 값은 **실제 사용·채택에 가까운 트래픽 신호**이지만 고유 사용자 수는 아닙니다. GGUF처럼 파일 단위 다운로드가 강한 형식은 whole-repo clone에서 중복 카운트 가능성이 있고, 더 세밀한 dedup·CI 제외·파일별 분석은 HF Publisher Analytics의 granular logs 영역입니다.
 
 좋아요 신호도 다운로드/좋아요 비율 기반의 `hfQualityFactor`로 보정합니다 (`rawJson`에 저장):
 
@@ -533,7 +535,8 @@ compositeScore = 6,350 / 100 = 63.5
 
 - **가설:** "다운로드는 *사용 의향*이 아닌 *사용 사실*. 모델은 다운로드 직후 추론에 투입되므로, downloads는 GitHub stars보다 사용에 가깝다."
 - **메트릭:** `downloads` (최근 30일), `downloadsAllTime` (cumulative).
-- **한계:** mirror/proxy 트래픽, 자동화된 학습/평가 파이프라인의 다운로드가 구분되지 않습니다. 30일 윈도우는 HF가 제공하는 단일 값이라 sub-period 분해는 불가.
+- **카운트 방식:** HF Hub가 서버 쪽에서 query file 요청을 집계합니다. `GET`과 `HEAD`가 모두 카운트되고, 라이브러리별 `countDownloads` 필터가 query file을 바꿀 수 있습니다.
+- **한계:** 고유 사용자 수가 아니며, mirror/proxy 트래픽과 자동화된 학습/평가 파이프라인의 다운로드가 구분되지 않습니다. 30일 윈도우는 HF가 제공하는 단일 값이라 sub-period 분해는 불가합니다. GGUF 파일은 파일 단위 사용에는 적합하지만 whole-repo clone에서는 중복 카운트 가능성이 있습니다.
 - **Goodhart 위험:** "다운로드 봇팜" → HF는 IP·UA 기반 디덕션을 일부 적용하지만 공개되지 않음. trendingScore와의 cross-check가 1차 방어.
 
 ### 9.8 Hugging Face Integration (H2)
@@ -855,6 +858,8 @@ CHAOSS 페이지에 "Bus Factor"와 "New Contributor Onboarding Rate"는 별도 
 - **OpenSSF Scorecard**: https://github.com/ossf/scorecard
 - **OpenSSF Criticality Score**: https://github.com/ossf/criticality_score
 - **Hugging Face Model Cards 가이드**: https://huggingface.co/docs/hub/model-cards
+- **Hugging Face Models Download Stats**: https://huggingface.co/docs/hub/models-download-stats
+- **huggingface_hub ModelInfo API**: https://huggingface.co/docs/huggingface_hub/v1.2.2/en/package_reference/hf_api#huggingface_hub.ModelInfo
 - **GitHub REST API**: https://docs.github.com/en/rest
 - **GitHub GraphQL API**: https://docs.github.com/en/graphql
 - **HN Algolia Search API**: https://hn.algolia.com/api

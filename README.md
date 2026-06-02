@@ -271,8 +271,8 @@ function computeUqs(node, now) {
 | 메트릭 키 | 카테고리 | 정의 | 정규화 maxI |
 |---|---|---|---|
 | `likes` | H1/Popularity | 좋아요 수 (cumulative) | 5,000 (log) |
-| `downloads` | H1/Downloads | 최근 30일 다운로드 | 10,000,000 (log) |
-| `downloadsAllTime` | H1/Downloads | 누적 다운로드 (cumulative) | 100,000,000 (log) |
+| `downloads` | H1/Downloads | HF 공식 다운로드 통계, 최근 30일 | 10,000,000 (log) |
+| `downloadsAllTime` | H1/Downloads | HF 공식 다운로드 통계, 생성 이후 누적 (cumulative) | 100,000,000 (log) |
 | `trendingScore` | H1/Popularity | HF가 제공하는 트렌딩 점수 | 100 (log) |
 | `spaces_count` | H2/Integration | 모델을 사용하는 Spaces 수 | 100 (log) |
 | `inferenceProviderCount` | H2 | Inference provider 매핑 수 | 10 (log) |
@@ -282,6 +282,8 @@ function computeUqs(node, now) {
 | `discussion_count` | H4/Community | discussions API 총 수 | 100 (log) |
 | `pr_count` | H4 | discussions 중 `type=pull_request` | 50 (log) |
 | `card_score` | H4 | description+license 둘 다 1.0, 하나만 0.5, 없음 0 (linear) | 1.0 |
+
+HF 다운로드 통계는 Hub가 파일을 제공하는 서버 쪽에서 집계합니다. 모델 저장소마다 라이브러리별 query file을 기준으로 하며, 기본값은 `config.json` 계열 파일이고 `GET`뿐 아니라 `HEAD` 요청도 다운로드로 카운트됩니다. 따라서 RepoPopIndex는 이 값을 **활성 사용·채택 신호**로 활용하되, 고유 사용자 수나 순수한 maintainer activity로 해석하지 않습니다. 그런 이유로 다운로드는 `H-Downloads`(가중치 25)에 두고, 커밋·기여자·마지막 커밋 경과일은 별도 `H-Activity`로 분리합니다.
 
 좋아요 신호도 다운로드/좋아요 비율 기반의 `hfQualityFactor`로 보정해 `qualityLikeScore = likes × max(0.3, hfQualityFactor)`를 함께 보관합니다.
 
