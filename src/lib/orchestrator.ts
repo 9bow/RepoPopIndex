@@ -6,15 +6,19 @@ import {
   pushRecentReport,
   reportCacheKey,
   REPORT_TTL,
+  saveMonthlyReportSnapshot,
 } from "./cache";
 import { dequeue } from "./queue";
 import { getAnalysis, updateAnalysisStatus } from "./analysis-store";
 import { writeSocialMetrics } from "./social-metrics-store";
 import { socialCacheKey } from "./collectors/_shared/cache-key";
+import { buildGitHubRawSources } from "./report-raw-data";
 import type {
   AnalysisReport,
   AnalysisStatus,
   CollectorResult,
+  ContributorInsights,
+  FirstResponseSummary,
   PartialInfo,
   PartialReason,
   Period,
@@ -31,6 +35,7 @@ interface AnalysisParams {
   owner: string;
   repo: string;
   period: Period;
+  managedRepositoryId?: string;
 }
 
 async function updateStatus(
@@ -59,7 +64,8 @@ const COLLECTOR_TIMEOUT = 15_000;
 const TOTAL_TIMEOUT = 60_000;
 
 export async function runAnalysis(params: AnalysisParams): Promise<void> {
-  const { analysisId, platform, owner, repo, period } = params;
+  const { analysisId, platform, owner, repo, period, managedRepositoryId } =
+    params;
 
   const totalTimer = setTimeout(() => {
     updateStatus(analysisId, "failed", 0, "Total timeout exceeded").catch(() => {});
@@ -69,6 +75,7 @@ export async function runAnalysis(params: AnalysisParams): Promise<void> {
     await updateStatus(analysisId, "collecting", 5, "Starting collectors...");
 
     const collectorResults: CollectorResult[] = [];
+    const coreFailedSources: string[] = [];
 
     if (platform === "github") {
       const [
@@ -78,6 +85,7 @@ export async function runAnalysis(params: AnalysisParams): Promise<void> {
         { collectGitHubDependents },
         { analyzeStarQuality },
         { collectPackageDownloads },
+        { collectGitHubContributorInsights },
       ] = await Promise.all([
         import("./collectors/github-graphql"),
         import("./collectors/github-search"),
@@ -85,6 +93,7 @@ export async function runAnalysis(params: AnalysisParams): Promise<void> {
         import("./collectors/github-scraper"),
         import("./collectors/star-quality"),
         import("./collectors/package-downloads"),
+        import("./collectors/github-contributors"),
       ]);
 
       await updateStatus(analysisId, "collecting", 10, "Collecting GitHub metrics...");
@@ -102,11 +111,26 @@ export async function runAnalysis(params: AnalysisParams): Promise<void> {
           .then(async (r) => { await updateStatus(analysisId, "collecting", 65, "Star quality done"); return r; }),
         withTimeout(collectPackageDownloads(owner, repo), COLLECTOR_TIMEOUT)
           .then(async (r) => { await updateStatus(analysisId, "collecting", 67, "Package downloads done"); return r; }),
+        withTimeout(collectGitHubContributorInsights(owner, repo), COLLECTOR_TIMEOUT)
+          .then(async (r) => { await updateStatus(analysisId, "collecting", 69, "Contributor insights done"); return r; }),
       ]);
 
-      for (const result of settled) {
+      const coreSourceNames = [
+        "github-graphql",
+        "github-search",
+        "github-rest",
+        "github-scraper",
+        "star-quality",
+        "package-downloads",
+        "github-contributors",
+      ];
+      for (let index = 0; index < settled.length; index++) {
+        const result = settled[index];
         if (result.status === "fulfilled") {
           collectorResults.push(result.value);
+          if (result.value.error) coreFailedSources.push(result.value.source);
+        } else {
+          coreFailedSources.push(coreSourceNames[index]);
         }
       }
     } else {
@@ -118,7 +142,12 @@ export async function runAnalysis(params: AnalysisParams): Promise<void> {
         COLLECTOR_TIMEOUT
       ).catch(() => null);
 
-      if (hfResult) collectorResults.push(hfResult);
+      if (hfResult) {
+        collectorResults.push(hfResult);
+        if (hfResult.error) coreFailedSources.push(hfResult.source);
+      } else {
+        coreFailedSources.push("huggingface");
+      }
       await updateStatus(analysisId, "collecting", 55, "HuggingFace done");
     }
 
@@ -258,14 +287,66 @@ export async function runAnalysis(params: AnalysisParams): Promise<void> {
       return { video_count, view_sum, like_sum };
     })();
 
+    let contributorInsights = (() => {
+      const metric = collectorResults
+        .find((result) => result.source === "github-contributors")
+        ?.metrics.find((item) => item.metricKey === "contributor_insights");
+      return (metric?.rawJson ?? null) as ContributorInsights | null;
+    })();
+
+    if (managedRepositoryId && contributorInsights) {
+      try {
+        const [
+          { listManagedContributors, upsertManagedContributors },
+          { updateContributorSyncState },
+        ] = await Promise.all([
+          import("./admin/contributor-store"),
+          import("./admin/repository-store"),
+        ]);
+        const identities = collectorResults.flatMap(
+          (result) => result.contributors ?? []
+        );
+        await upsertManagedContributors(managedRepositoryId, identities);
+        const managedContributors =
+          await listManagedContributors(managedRepositoryId);
+        contributorInsights = {
+          ...contributorInsights,
+          verifiedInternalContributors: managedContributors.filter(
+            (contributor) => contributor.internal
+          ).length,
+          verifiedOtherContributors: managedContributors.filter(
+            (contributor) => !contributor.internal
+          ).length,
+          verifiedClassificationUpdatedAt: new Date().toISOString(),
+        };
+        await updateContributorSyncState(managedRepositoryId, {
+          contributorSyncStatus: "complete",
+          contributorSyncedAt: new Date().toISOString(),
+          contributorCount: managedContributors.length,
+        });
+      } catch {
+        // Admin enrichment is best-effort and must not fail the public report.
+      }
+    }
+
+    const firstResponse = (() => {
+      const metric = collectorResults
+        .find((result) => result.source === "github-search")
+        ?.metrics.find((item) => item.metricKey === "G3.4");
+      return (metric?.rawJson ?? null) as FirstResponseSummary | null;
+    })();
+
     // Aggregate partial info: served_from_backup + per-source failures.
-    const missingSources: string[] = [
-      ...backupSources,
-      ...failedSources.map((f) => f.source),
+    const missingSources = [
+      ...new Set([
+        ...coreFailedSources,
+        ...backupSources,
+        ...failedSources.map((f) => f.source),
+      ]),
     ];
     let partialReason: PartialReason | null = null;
     if (failedSources.some((f) => f.reason === "rate_limit")) partialReason = "rate_limit";
-    else if (failedSources.length > 0) partialReason = "collector_error";
+    else if (failedSources.length > 0 || coreFailedSources.length > 0) partialReason = "collector_error";
     else if (backupSources.length > 0) partialReason = "served_from_backup";
     const partialInfo: PartialInfo | null =
       partialReason !== null && missingSources.length > 0
@@ -274,7 +355,12 @@ export async function runAnalysis(params: AnalysisParams): Promise<void> {
 
     const hasEnoughData = scoreResult.excludedCategories.length <
       Object.keys(scoreResult.categoryScores).length;
-    const finalStatus: AnalysisStatus = hasEnoughData ? "complete" : "partial";
+    const finalStatus: AnalysisStatus =
+      hasEnoughData &&
+      scoreResult.excludedCategories.length === 0 &&
+      coreFailedSources.length === 0
+        ? "complete"
+        : "partial";
 
     const hasAnyFailed = collectorResults.length === 0;
     const effectiveStatus: AnalysisStatus = hasAnyFailed ? "failed" : finalStatus;
@@ -301,9 +387,25 @@ export async function runAnalysis(params: AnalysisParams): Promise<void> {
       },
       scoreVersion: "v2",
       partial: partialInfo,
+      contributorInsights,
+      firstResponse,
+      rawSources:
+        platform === "github"
+          ? buildGitHubRawSources(collectorResults, completedAt)
+          : undefined,
       createdAt: existing?.createdAt ?? completedAt,
       completedAt,
     };
+
+    if (effectiveStatus === "complete" || effectiveStatus === "partial") {
+      try {
+        report.snapshots = await saveMonthlyReportSnapshot(report);
+      } catch {
+        report.snapshots = [];
+      }
+    } else {
+      report.snapshots = [];
+    }
 
     await cacheSet(
       reportCacheKey(platform, owner, repo, period),

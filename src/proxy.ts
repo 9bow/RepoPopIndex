@@ -12,7 +12,7 @@ function detectFromAcceptLanguage(header: string | null): Locale {
   return code === "ko" ? "ko" : "en";
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const cookieVal = request.cookies.get(LOCALE_COOKIE)?.value;
   const locale: Locale =
     cookieVal === "ko" || cookieVal === "en"

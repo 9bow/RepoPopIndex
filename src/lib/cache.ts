@@ -7,9 +7,16 @@
 //   rpi:social:reddit:token{,:lock}                  — Reddit OAuth token + refresh lock
 //   rpi:social:youtube:quota-exhausted:{YYYY-MM-DD}  — YouTube quota circuit breaker
 //   rpi:recent:reports                               — list of recent finalized reports (LPUSH/LTRIM)
+//   rpi:snapshots:{platform}:{owner}/{repo}:{period} — monthly report snapshots (Redis hash)
 
 import { redis } from "./rate-limiter";
-import type { Period, Platform, ScoreVersion } from "./types";
+import type {
+  AnalysisReport,
+  Period,
+  Platform,
+  ReportSnapshot,
+  ScoreVersion,
+} from "./types";
 
 export async function cacheGet<T>(key: string): Promise<T | null> {
   const value = await redis.get<T>(key);
@@ -35,6 +42,82 @@ export function reportCacheKey(
 
 export function progressCacheKey(analysisId: string): string {
   return `rpi:progress:${analysisId}`;
+}
+
+function snapshotCacheKey(
+  platform: string,
+  owner: string,
+  repo: string,
+  period: string
+): string {
+  return `rpi:snapshots:${platform}:${owner}/${repo}:${period}`;
+}
+
+function snapshotMonth(value: Date): string {
+  return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+export async function saveMonthlyReportSnapshot(
+  report: AnalysisReport
+): Promise<ReportSnapshot[]> {
+  const month = snapshotMonth(new Date(report.completedAt ?? report.createdAt));
+  const truncatedContributorSources =
+    report.contributorInsights?.dataQuality.truncatedSources.map(
+      (source) => `github-contributors:${source}`
+    ) ?? [];
+  const categoryScores = Object.fromEntries(
+    Object.entries(report.categoryScores).map(([key, category]) => [
+      key,
+      category.insufficient ? null : category.score,
+    ])
+  );
+  const rawMetrics: Record<string, number | null> = {};
+  for (const category of Object.values(report.categoryScores)) {
+    for (const [key, metric] of Object.entries(category.metrics)) {
+      rawMetrics[key] = metric.raw;
+    }
+  }
+
+  const snapshot: ReportSnapshot = {
+    month,
+    capturedAt: report.completedAt ?? report.createdAt,
+    status:
+      report.status === "complete" &&
+      !report.partial &&
+      truncatedContributorSources.length === 0
+        ? "complete"
+        : "partial",
+    missingSources: [
+      ...new Set([
+        ...(report.partial?.missingSources ?? []),
+        ...truncatedContributorSources,
+      ]),
+    ],
+    excludedCategories: report.excludedCategories,
+    compositeScore: report.compositeScore,
+    categoryScores,
+    rawMetrics,
+    activeContributors: report.contributorInsights?.activeContributors ?? null,
+    observedNewContributors:
+      report.contributorInsights?.observedNewContributors ?? null,
+    retentionRate:
+      report.contributorInsights?.latestCompleteMonthRetentionRate ?? null,
+    medianHumanResponseHours:
+      report.firstResponse?.medianHumanResponseHours ?? null,
+    medianMaintainerResponseHours:
+      report.firstResponse?.medianMaintainerResponseHours ?? null,
+  };
+  const key = snapshotCacheKey(
+    report.platform,
+    report.owner,
+    report.repo,
+    report.period
+  );
+  await redis.hset(key, { [month]: snapshot });
+  const stored = await redis.hgetall<Record<string, ReportSnapshot>>(key);
+  return Object.values(stored ?? {}).sort((left, right) =>
+    left.month.localeCompare(right.month)
+  );
 }
 
 // Completed reports are immutable — score and metrics never change after

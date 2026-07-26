@@ -78,7 +78,9 @@ runAnalysis() — src/lib/orchestrator.ts
    │    ├─ github-rest         (G2.x stats, G5.x releases, G7.x community)
    │    ├─ github-search       (G3.x issues, G4.x PRs — GraphQL alias multi-search)
    │    ├─ github-scraper      (G6.1 dependents, HTML 파싱)
-   │    ├─ star-quality        (G8.x — 샘플링된 100명+50% 시점 100명 stargazer)
+   │    ├─ star-quality        (G8.x — 최근 stargazer 최대 100명 표본)
+   │    ├─ package-downloads   (npm/PyPI 최근 1개월 다운로드)
+   │    ├─ github-contributors (24개월 관측, 최근 12개월 기여자 흐름)
    │    ├─ huggingface         (H1–H4)
    │    ├─ hackernews          (S1 HN 부분)
    │    ├─ reddit              (S1 Reddit, dark-launch)
@@ -94,6 +96,7 @@ runAnalysis() — src/lib/orchestrator.ts
    │
    └─ persist → Redis
         rpi:report:{platform}:{owner}/{repo}:{period}   TTL 30d
+        rpi:snapshots:{platform}:{owner}/{repo}:{period} TTL 없음 (월별 hash)
         rpi:analysis:{id}                                TTL 30d (status/error)
         rpi:progress:{id}                                TTL 10m (live polling)
 ```
@@ -118,7 +121,7 @@ runAnalysis() — src/lib/orchestrator.ts
 
 ## 3. 저장 모델
 
-본 시스템은 **PostgreSQL을 사용하지 않습니다.** 모든 영속 상태는 Upstash Redis에 저장되며 TTL로 자연 만료됩니다.
+본 시스템은 **PostgreSQL을 사용하지 않습니다.** 자주 읽는 작은 상태·인덱스는 Upstash Redis에 저장하고, 월별 전체 리포트 파일은 private Vercel Blob에 분리합니다. 상세 리포트·진행 상태는 TTL로 만료되지만 월별 비교 스냅샷과 관리자 인덱스는 TTL을 두지 않습니다.
 
 | 키 패턴 | 용도 | TTL |
 |---|---|---|
@@ -128,6 +131,12 @@ runAnalysis() — src/lib/orchestrator.ts
 | `rpi:queue` | 분석 큐 (sorted set, 최대 20) | 1시간 sliding |
 | `rpi:rate:{source}` | 소스별 레이트 리미터 카운터 | window별 |
 | `rpi:social:metrics:{analysisId}` | dark-launch 소셜 메트릭 blob | 30일 |
+| `rpi:snapshots:{platform}:{owner}/{repo}:{period}` | 달력 월별 분석 스냅샷 hash, 같은 달은 최신 실행으로 갱신 | 없음 |
+| `rpi:admin:repositories` | 등록 저장소, 다음 실행일, 최근 분석·백업 상태 | 없음 |
+| `rpi:admin:contributors:{repositoryId}` | GitHub 안정 ID 명부와 관리자 내부 판정 | 없음 |
+| `rpi:admin:stargazers:{repositoryId}` | 최근 최대 1,000명 계정 가입일·star 시점 캐시 | 없음 |
+| `rpi:admin:stargazer-distribution:{repositoryId}` | 계정 연령·월별 분포와 API 접근 상태 | 없음 |
+| `rpi:admin:backups:{repositoryId}` | private Blob JSON·CSV·XLSX 객체 인덱스 | 없음 |
 
 리포트 객체에 저장되는 주요 필드:
 
@@ -135,12 +144,17 @@ runAnalysis() — src/lib/orchestrator.ts
 |---|---|
 | `compositeScore` | 0–100 종합 점수 |
 | `categoryScores` | `Record<categoryId, { name, score, maxScore:100, metrics, insufficient, reason? }>` |
-| `metricScores` | `Record<metricKey, { raw, normalized, weighted }>` |
+| `categoryScores.*.metrics` | `Record<metricKey, { raw, normalized, weighted }>` |
 | `excludedCategories` | 데이터 부족으로 제외된 카테고리 ID 배열 |
-| `starQualityFactor`, `starQualityRecent`, `starQualityHistorical`, `starBurstDetected` | G8에서 비정규화된 빠른 조회용 필드 |
-| `hnData` | `{ storyCount, totalPoints, totalComments, topStory, engagement }` |
+| `starQuality` | `{ factor, recent, historical, burstDetected }`; 현재 `historical`은 별도 과거 표본이 아니라 호환용 동일 값 |
+| `socialBuzz` | HN/Reddit/Stack Overflow/YouTube 표시용 요약 |
+| `contributorInsights`, `firstResponse` | 월별 기여자 흐름과 첫 사람·저장소 연관 계정 응답 표본 |
+| `rawSources` | GitHub 응답에서 추출한 수집값 또는 정규화 전 파생값·근거 JSON·수집 상태 |
+| `snapshots` | 해당 저장소·기간에 보존된 월별 비교 스냅샷 |
 
-DB를 두지 않은 이유: 모든 PG 쿼리가 `where id = ?` 단건 룩업이었고 raw_metrics는 작성 후 한 번도 읽히지 않았습니다. 영속성이 필요한 유일한 데이터는 "완료된 리포트"이며, 이는 결정적 캐시 키로 자연스럽게 dedup되어 30일 TTL Redis로 충분합니다 (커밋 abcc711).
+별도 관계형 DB를 두지 않은 이유는 조회 패턴이 저장소·기간 단위 단건 리포트, 월별 hash, 관리자 명부 조회로 한정되기 때문입니다. 원시값은 리포트의 `rawSources`에서 실제 열람·JSON 다운로드에 사용하며, 장기 비교값은 스냅샷 hash에 보존합니다.
+
+월별 스냅샷은 자동 만료되지 않습니다. 등록 저장소의 분석 완료 시 전체 리포트 JSON, 평면 지표 CSV, 다중 시트 XLSX를 별도 private Blob 객체로 저장합니다. 오래된 전체 리포트는 관리자 요청 시에만 JSON 객체를 읽으므로 큰 문서를 Redis에 상주시킬 때보다 비용이 예측 가능합니다. Blob 백업은 30일 캐시와 분리된 장기 파일 보관이지만, 다른 공급자·계정으로 복제하는 재해복구는 아닙니다.
 
 ---
 
@@ -169,11 +183,14 @@ DB를 두지 않은 이유: 모든 PG 쿼리가 `where id = ?` 단건 룩업이�
 | `G3.1` | G3/Community | 기간 내 신규 이슈 수 (`type:issue created:>{since}`) |
 | `G3.2` | G3 | 기간 내 종료 이슈 수 (`type:issue closed:>{since}`) |
 | `G3.3` | G3 | 이슈 종료율 = `G3.2 / G3.1` (linear, 0–1) |
+| `G3.4` | G3 | 최신 이슈 30개 표본의 첫 사람 응답 중앙값(일). 작성자 본인·봇 제외, 첫 저장소 연관 계정 응답·응답률·미응답 수는 `rawJson`과 리포트에 시간 단위로 별도 표시 |
 | `G4.1` | G4/Community | 기간 내 신규 PR 수 (`type:pr created:>{since}`) |
 | `G4.2` | G4 | 기간 내 머지 PR 수 (`type:pr merged:>{since}`) |
 | `G4.3` | G4 | PR 머지율 = `G4.2 / G4.1` (linear, 0–1) |
-| `G4.4` | G4 | 머지 PR 30개 샘플의 **고유 작성자 수** (외부 기여자 다양성) |
+| `G4.4` | G4 | 머지 PR 30개 표본의 **고유 작성자 수**. 내부/외부를 구분하지 않는 작성자 다양성 |
 | `G4.5` | G4 | 머지 PR의 **중앙값 머지 소요일** (낮을수록 좋음, `inverse`) |
+
+`G3.4`는 이슈당 최초 20개 댓글을 시간순으로 검사합니다. 이슈 작성자 본인과 봇을 제외한 첫 사람 응답을 점수에 사용하고, `OWNER`·`MEMBER`·`COLLABORATOR`의 첫 응답은 별도 요약합니다. 댓글 총수가 20개를 넘으면 `commentsTruncated=true`를 저장하고 리포트에 표본 제한 경고를 표시합니다. 미응답 이슈는 중앙값에서 제외되지만 응답률·미응답 수에는 포함됩니다.
 
 ### 4.3 `github-rest` — 활동 통계 + 릴리즈 + 커뮤니티 프로파일
 
@@ -205,27 +222,60 @@ DB를 두지 않은 이유: 모든 PG 쿼리가 `where id = ?` 단건 룩업이�
 
 ### 4.5 `star-quality` — 별 품질 보정 (G8)
 
-봇·이벤트 폭주를 보정하기 위해 **최근 100명의 stargazer**와 **히스토리 중간 시점의 100명**을 GraphQL로 샘플링해 사용자 품질 점수(UQS)를 계산합니다.
+봇·이벤트 폭주를 보정하기 위해 GitHub GraphQL에서 조회 가능한 **최근 stargazer 최대 100명**을 표본으로 사용자 품질 점수(UQS)를 계산합니다. 별도 과거 표본은 수집하지 않습니다.
 
 ```ts
 ageDays = (now − user.createdAt) / 86_400_000
-bot = ageDays < 7 OR (followers == 0 AND repositories == 0 AND contributions == 0)
+bot = ageDays < 7 OR (followers == 0 AND repositories == 0)
 if bot: UQS = 0
 else:
   A = min(1, ageDays         / 730)         // 계정 나이 (2년 만점)
   F = min(1, log(1+followers) / log(1+100))  // 팔로워
   R = min(1, log(1+repos)     / log(1+30))   // 보유 저장소
-  C = min(1, log(1+contribs)  / log(1+500))  // contribution
-  UQS = 0.25·A + 0.25·F + 0.25·R + 0.25·C
+  UQS = 0.4·A + 0.3·F + 0.3·R
 ```
 
 | metricKey | Category | 정의 |
 |---|---|---|
-| `G8.1` | G8/Popularity | **Quality Star Score** = `totalStars × avgUqs` (`avgUqs = (recent + historical) / 2`) |
+| `G8.1` | G8/Popularity | **Quality Star Score** = `totalStars × avgUqs` |
 | `G8.2` | G8 | 최근 별 도착률 (개/일) |
-| `G8.3` | G8 | 별 폭주 플래그 (0/1, 일별 카운트 중 `> 평균 × 5`가 있으면 1) |
 
-`rawJson`에 `{ avgUqsRecent, avgUqsHistorical, avgUqs, burstDetected }`가 함께 저장되어 리포트 UI의 "Star quality assessment" 카드에 표시됩니다.
+별 폭주 여부는 점수 지표가 아니라 `rawJson.burstDetected` 검토 플래그로 저장합니다. `rawJson`에는 `{ avgUqsRecent, avgUqsHistorical, avgUqs, burstDetected, sampledCount }`가 들어가며, 현재 호환 필드 `avgUqsHistorical`은 별도 과거 표본이 아니라 최근 표본과 같은 값입니다. 이 휴리스틱은 계정 품질 검토 신호이지 봇 확정 판정이 아닙니다.
+
+2026년 7월 GitHub의 stargazer 명단 접근 제한 이후 관리자·협업자 권한이 없는 저장소에서는 총 Star 수만 반환되고 edge가 비어 있을 수 있습니다. 이 경우 G8.1/G8.2는 0점이 아니라 N/A로 처리합니다. 아래 §10의 2026-04-25 측정값은 제한 도입 전 스냅샷입니다.
+
+### 4.6 `github-contributors` — 월별 기여자 흐름
+
+GitHub GraphQL로 최근 24개월의 기본 브랜치 커밋과 생성된 PR·이슈 작성자를 각각 최대 500건까지 페이지네이션합니다. 최근 12개월을 월별로 집계하고 봇 계정은 제외합니다.
+
+| 항목 | 정의 |
+|---|---|
+| 활동 기여자 | 해당 월 커밋·PR·이슈 중 하나 이상이 있는 고유 계정 |
+| 관측 신규 | 24개월 관측 구간 안에서 해당 월에 처음 나타난 계정 |
+| 재참여율 | 직전 달 활동자 중 이번 달에도 활동한 비율 |
+| 저장소 연관 | `OWNER`, `MEMBER`, `COLLABORATOR` author association |
+| 기타 공개 기여자 | `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, `FIRST_TIMER`, `NONE` |
+
+`FIRST_TIMER`는 GitHub 전체에서 이전 커밋이 없음, `FIRST_TIME_CONTRIBUTOR`는 해당 저장소에 이전 커밋이 없다는 author-association 신호입니다. 둘 다 프로젝트의 커밋·PR·이슈 전체 이력을 관측해 확정한 신규 기여자는 아닙니다. 커밋·PR·이슈 중 어느 한 소스라도 500건 상한에 도달하면 `dataQuality.status = partial`과 잘린 소스를 표시합니다.
+
+월별 연관 분류는 해당 월 PR·이슈 이벤트의 association만 사용하여 이후 관계를 과거 월에 소급하지 않습니다. 기본 브랜치 커밋은 repository association을 제공하지 않으며, GitHub 사용자 계정에 연결되지 않은 커밋 작성자는 집계에서 제외될 수 있습니다.
+
+### 4.7 `package-downloads` — npm/PyPI 최근 1개월 다운로드
+
+npm은 저장소의 `main` 또는 `master` 브랜치 `package.json`에서 실제 패키지명을 찾은 경우에만 npm downloads API를 호출합니다. PyPI는 저장소 이름을 패키지명 후보로 사용하되 PyPI 프로젝트 메타데이터의 homepage/project URL이 해당 GitHub 저장소를 가리킬 때만 pypistats 값을 채택합니다. 단순 동명 패키지를 잘못 연결하지 않기 위한 검증입니다.
+
+두 값 모두 선택한 RepoPopIndex 분석 기간과 무관한 **최근 1개월 registry 통계**입니다. 패키지 연결을 확인할 수 없으면 0이 아니라 N/A로 처리합니다.
+
+### 4.8 원시 데이터 표시
+
+리포트의 `rawSources`에는 GitHub 수집기별 `metricKey`, 정규화 전 `rawValue`, 근거 `rawJson`, 수집 상태와 오류를 보존합니다. 화면에서 수집기별로 펼쳐 보고 JSON으로 내려받을 수 있습니다. 접근 토큰·요청 헤더와 전체 HTTP 응답 본문은 저장하지 않습니다. 따라서 여기서 말하는 원시 데이터는 **GitHub 응답에서 추출한 수집값 또는 점수 정규화 전 파생값과 근거 메타데이터**이며, HTTP 응답의 바이트 단위 아카이브는 아닙니다.
+
+### 4.9 관리자 명부·자동 실행·stargazer 분포
+
+- **기여자 명부:** REST `GET /repos/{owner}/{repo}/contributors`를 최대 100페이지까지 순회하고 `node_id`를 우선 식별자로 저장합니다. 관리자만 내부 직원 여부를 체크하며 공개 리포트에는 확인된 내부/그 외 합계만 전달합니다. GitHub는 성능상 첫 500개 작성자 이메일만 사용자 계정에 연결하므로, 이후 익명 작성자는 안정 ID 명부에 포함되지 않을 수 있습니다.
+- **월별 자동 실행:** Inngest가 매일 01:00 UTC(10:00 KST)에 등록 저장소의 1–28일 실행일을 확인합니다. 완료 후 기여자·stargazer 캐시를 갱신하고 private JSON·CSV·XLSX 백업을 생성합니다.
+- **Stargazer 가입일 분포:** GraphQL `stargazers` edge의 `starredAt`과 `User.createdAt`을 최근 최대 1,000명까지 캐시합니다. star 당시 계정 연령 구간, 가입 월·star 월, 7/30/90일 미만 비율을 표시하되 조작 확정값으로 채점하지 않습니다.
+- **접근 제한:** 2026년 7월 GitHub는 stargazer 명단을 저장소 관리자·협업자로 제한했습니다. 실제 `sindresorhus/ky` 조회에서도 `stargazerCount=17,003`은 반환됐지만 edge는 0건이었습니다(2026-07-26 확인). 시스템은 이를 정상 0명으로 저장하지 않고 `unavailable`로 표시하며, 이전 성공 캐시가 있으면 `cached` 상태로 보존합니다.
 
 ---
 
@@ -321,7 +371,7 @@ Reddit은 자격 정보가 없으면 모든 메트릭이 null로 반환되어 �
 | `stars` | G1 | 200,000 | 3 | ✓ | | |
 | `forks` | G1 | 50,000 | 1 | ✓ | | |
 | `watchers` | G1 | 10,000 | 1 | ✓ | | |
-| `G2.4` contributors | G2 | 500 | 3 | | | |
+| `G2.4` contributors | G2 | 500 | 3 | ✓ | | |
 | `G2.5` graphql commits | G2 | 2,000 | 2 | | | |
 | `G2.2` external share | G2 | 1.0 | 2 | | ✓ | |
 | `G2.3_additions` | G2 | 50,000 | 1 | | | |
@@ -507,7 +557,7 @@ compositeScore = 6,350 / 100 = 63.5
 - **가설:** "이슈 종료율 + PR 머지 소요시간 + PR 작성자 다양성 = 메인테이너 응답성과 외부 기여 흡수율의 정량 proxy." Kalliamvakou et al. 2014 ("The promises and perils of mining GitHub")의 경고를 반영해, "이슈 종료" 자체보다 *비율*과 *수*를 동시에 봅니다.
 - **메트릭:** `G3.1`–`G3.3`(이슈), `G4.1`–`G4.5`(PR).
 - **한계:** stale-bot이 자동 close하는 케이스, "wontfix" 일괄 close 등은 정량으로 구분되지 않습니다. close ratio가 1을 넘는 케이스(react 1.121, transformers 1.007)는 *기간 외에 열린 이슈가 기간 내에 닫힌* 결과이며 정상 신호이지만, 1.0에서 cap된 정규화로 인해 추가 정보를 잃습니다.
-- **Goodhart 위험:** "stale-bot으로 1주마다 일괄 close" → G3.3은 만점이지만 G3.1과 G3.2가 동시에 낮아짐 (실질 활동 부재). G4.4(PR 작성자 다양성)는 외부 기여를 직접 측정해 이 게이밍과 직교합니다.
+- **Goodhart 위험:** "stale-bot으로 1주마다 일괄 close" → G3.3은 만점이지만 G3.1과 G3.2가 동시에 낮아짐 (실질 활동 부재). G4.4는 내부/외부 구분 없이 PR 작성자 다양성을 측정하므로 이 게이밍과 직교하지만, 외부 기여 자체를 확정하지는 않습니다.
 
 ### 9.4 GitHub Adoption (G5, G6)
 
@@ -579,7 +629,7 @@ compositeScore = 6,350 / 100 = 63.5
 | Community | **Insufficient** | (게이트 제외, GitHub Search secondary rate limit 추정) |
 
 - **관찰 1 — Community insufficient.** 3개월 윈도우에서 Community 가용 메트릭이 30% 미만으로 떨어져 카테고리가 통째로 제외됨. github-search secondary rate limit(403)의 실제 발생 사례. 이 사건은 본 시스템이 §1.3에서 0.5 → 0.3으로 게이트를 낮춘 *바로 그 시나리오*입니다.
-- **관찰 2 — Popularity 92이지만 Star Quality 0%.** "Quality factor 0%, Recent UQS 0" — 최근 100명 stargazer 샘플의 UQS 평균이 0에 수렴. 봇/저품질 계정 비율이 매우 높거나, 샘플 윈도우가 burst 직후라 신생 계정이 몰린 가능성. composite 77이 진짜 인기인지 burst 잔존인지는 G8.3(burstDetected)와 함께 봐야 함.
+- **관찰 2 — Popularity 92이지만 Star Quality 0%.** "Quality factor 0%, Recent UQS 0" — 최근 100명 stargazer 샘플의 UQS 평균이 0에 수렴. 봇/저품질 계정 비율이 매우 높거나, 샘플 윈도우가 burst 직후라 신생 계정이 몰린 가능성. composite 77이 진짜 인기인지 burst 잔존인지는 `rawJson.burstDetected`와 함께 봐야 함.
 - **관찰 3 — Top HN story:** "Show HN: Run TRELLIS.2 Image-to-3D generation natively on Apple Silicon (202 pts)". 흥미롭게도 이는 *pytorch 자체*가 아닌 *pytorch를 사용한 3rd-party*가 HN에 올린 글로, HN URL 매칭의 한계(§9.6)를 잘 보여줍니다.
 - **시사점:** Composite 77은 평이해 보이지만, Community insufficient + Star Quality 0 둘을 제거하면 *실질 활성 카테고리 4개의 평균*은 더 높음. 단일 점수로 의사결정하면 안 되는 전형적 케이스.
 
@@ -655,6 +705,19 @@ compositeScore = 6,350 / 100 = 63.5
 2. **메가 OSS에서 Health는 식별력이 거의 없습니다.** 4개 모두 Health 87–100. 가중치 5의 정당성.
 3. **R3 정직성**: 본 측정값은 2026-04-25의 스냅샷이며, "Active/Moderate" 라벨은 단순 임계값(80+ Vibrant, 60+ Active, 40+ Moderate, …)이지 절대 평가가 아닙니다.
 
+### 10.6 기여자 흐름·응답성 실측 — 2026-07-25
+
+신규 수집기를 GitHub 공개 저장소 2개에 실행해 규모별 동작과 수집 상한 표시를 확인했습니다.
+
+| 저장소 | 활동 기여자 | 관측 신규 | 연관/기타/불명 | 최근 완료 월 재참여율 | 사람/연관 계정 첫 응답 중앙값 | 품질 |
+|---|---:|---:|---:|---:|---:|---|
+| `pallets/click` | 289 | 271 | 4 / 279 / 6 | 2.3% | 9.06h / 16.89h | partial: commits, pull_requests |
+| `sindresorhus/ky` | 75 | 70 | 2 / 73 / 0 | 0% | 3.52h / 3.52h | complete |
+
+`pallets/click`은 커밋·PR 각각 500건 수집 상한에 도달했기 때문에 관측 신규 271명을 전체 역사 기준 신규로 해석하면 안 됩니다. 반면 `sindresorhus/ky`는 현재 상한 내에서 완료되었습니다. 두 저장소 모두 `FIRST_TIMER`/`FIRST_TIME_CONTRIBUTOR` 신호가 0이었으므로, 이 enum을 신규 기여자의 주 지표로 쓰지 않고 24개월 관측 신규와 분리한 설계가 타당함을 확인했습니다.
+
+응답성은 최신 이슈 30개 표본입니다. `pallets/click`은 사람 응답 19·미응답 11, 저장소 연관 계정 응답 19·미응답 11이었고, `sindresorhus/ky`는 각각 응답 25·미응답 5였습니다. 따라서 중앙값만 표시하면 미응답이 숨겨지므로 리포트는 응답률과 미응답 수도 함께 표시합니다.
+
 ---
 
 ## 11. Goodhart 위험과 보호 장치
@@ -665,7 +728,7 @@ compositeScore = 6,350 / 100 = 63.5
 
 | 메트릭 | 게이밍 시나리오 | 보호 장치 |
 |---|---|---|
-| `stars` (G1) | 봇 농장 / paid 별 | G8.1 Quality Star Score (`stars × avgUqs`) 와 G8.3 burstDetected 플래그가 별도 표시. 카테고리 점수 + Star quality assessment 카드 동반 노출. |
+| `stars` (G1) | 봇 농장 / paid 별 | G8.1 Quality Star Score (`stars × avgUqs`) 와 `rawJson.burstDetected` 플래그를 별도 표시. 카테고리 점수 + Star quality assessment 카드 동반 노출. |
 | `G3.3` issue close rate | stale-bot 자동 close, "wontfix" 일괄 close | G3.1, G3.2 절대값 동반 평가 (close rate 1.0이지만 issue 0개면 의미 없음). G4.4 PR author diversity와의 cross-check. |
 | `G6.1` dependents | dependent inflation은 어렵지만 *fork inflation으로 stars/forks 부풀리기*는 가능 | G6.1은 dependent *저장소* 수이므로 fork와 직접 연결 안 됨. forks 지표는 Popularity 카테고리 내에서 stars/watchers와 균형. |
 
@@ -718,7 +781,7 @@ compositeScore = 6,350 / 100 = 63.5
 
 | 지표 | Hypothesis | 측정 | 카테고리 매핑 | 통합 권고 |
 |---|---|---|---|---|
-| Time to First Response | "메인테이너 응답성의 1차 신호" | 이슈/PR 생성 → 메인테이너 첫 코멘트까지 시간의 분포 | Community 강화 | **yes** — github-search GraphQL에 timeline 추가 호출로 도입 가능 |
+| Time to First Response | "메인테이너 응답성의 1차 신호" | 최신 이슈 30개에서 작성자 본인·봇을 제외한 첫 사람 응답과 첫 저장소 연관 계정 응답 | Community 강화 | **구현 완료** — G3.4와 응답률·미응답 수 표시 |
 | Time to Close | "이슈 lifecycle 길이" | 이슈 생성 → close까지 분포 (median, p75, p95) | Community | **yes** — 이미 G3.x로 부분 측정, 분포로 확장 |
 | Change Request Closure Ratio | "PR 처리량의 정상성" | PR open/merge/close 비율 | Community (G4.3와 중복) | **defer** — 기존 G4.3과 거의 동일 |
 | Burstiness | "활동의 시간 분산" | 일/주별 카운트의 표준편차/Gini 계수 | Activity 신규 차원 | **defer** — G2.6 모멘텀과 일부 중복 |
@@ -772,7 +835,7 @@ CHAOSS 페이지에 "Bus Factor"와 "New Contributor Onboarding Rate"는 별도 
 | 지표 | 출처 키워드 | 카테고리 매핑 | 통합 권고 |
 |---|---|---|---|
 | Truck Factor | Avelino et al. 2016 ("Truck factor: How many devs do we need to keep?") | 신규 **People-Risk** 또는 Health 확장 | **yes** — strategic, commit-author concentration 기반 |
-| Newcomer Retention | Steinmacher et al. 2015 | Community 확장 | **yes** — quick win, "1st-time PR 머지자가 N개월 후에도 활동하는 비율" |
+| Newcomer Retention | Steinmacher et al. 2015 | Community 확장 | **부분 구현** — 월간 전체 활동자 재참여율 구현, 신규 코호트 N개월 유지율은 후속 |
 | PR Latency Decomposition | Yu et al. 2015 | Community (G4.5 정밀화) | **yes** — first-response/review/merge 3단계 분해 |
 | Dependency Centrality (PageRank) | Decan et al. 2019 | Adoption 정밀화 | **defer** — npm/PyPI 그래프 전체 필요, 비용 큼 |
 | Sentiment in Commit Messages | Pletea et al. 2014 | Community? | **skip** — false signal 위험, 문화적 편향 |
@@ -813,7 +876,7 @@ CHAOSS 페이지에 "Bus Factor"와 "New Contributor Onboarding Rate"는 별도 
 
 | 지표 | 출처 | 카테고리 매핑 | 통합 권고 |
 |---|---|---|---|
-| PyPI / npm Downloads | https://libraries.io API, pypistats, npm-stat | Adoption 강력 보강 | **yes — quick win**. react Adoption 59의 release-asset 0 문제를 직접 해결 |
+| PyPI / npm Downloads | npm registry + npm downloads API, PyPI metadata + pypistats | Adoption 강력 보강 | **구현 완료** — 저장소 연결을 검증할 수 있을 때 최근 1개월 다운로드 반영 |
 | GitHub Advisory (GHSA) | github.com/advisories | 신규 Security | yes (§13.2와 묶음) |
 | SPDX License Compatibility | spdx.org/licenses + dep tree | 신규 Compliance | defer |
 | Documentation Pageviews | Algolia DocSearch (when public) | 신규 사용 신호 | defer |
@@ -824,7 +887,8 @@ CHAOSS 페이지에 "Bus Factor"와 "New Contributor Onboarding Rate"는 별도 
 
 | Quadrant | 지표 |
 |---|---|
-| **Quick wins** (가치↑, 난이도↓) | Time to First Response, Newcomer Retention, libraries.io PyPI/npm downloads, HF Safety Eval Presence |
+| **완료·부분 완료** | Time to First Response, 월간 활동자 재참여율, PyPI/npm downloads, 월별 기여자 흐름 |
+| **Quick wins** (가치↑, 난이도↓) | 신규 기여자 코호트 N개월 유지율, HF Safety Eval Presence |
 | **Strategic bets** (가치↑, 난이도↑) | OpenSSF Scorecard 통합 (Security 카테고리 신설), Truck Factor, HF Eval Benchmark 등재 |
 | **Defer / Watch** | Sentiment, Documentation Pageviews, arXiv mentions |
 | **Skip** | Conference mentions full-text, Sentiment in commits |
@@ -835,11 +899,11 @@ CHAOSS 페이지에 "Bus Factor"와 "New Contributor Onboarding Rate"는 별도 
 
 본 시스템은 다음 순서로 진화하는 것을 권고합니다 (각 단계는 §13의 5축 평가 결과 반영):
 
-1. **단기 (1–2주):** libraries.io PyPI/npm downloads 통합 (§13.6) → react/express 류 Adoption 정확성 향상.
-2. **단기:** HF 모델 카드 룹브릭 13항목 (§13.5) → card_score 정밀화. 가중치 변경 없음.
-3. **중기 (1–2개월):** OpenSSF Scorecard 부분 통합 → Health=5를 Health=3 + Security=5로 분해 (§13.2).
-4. **중기:** CHAOSS Time to First Response (§13.1) → Community에 `G3.4` 추가.
-5. **장기 (3–6개월):** Truck Factor / Newcomer Retention (§13.4) → People-Risk 신규 카테고리 또는 Health 확장.
+1. **완료:** npm/PyPI 최근 1개월 다운로드, CHAOSS Time to First Response(`G3.4`), 월별 기여자 흐름·재참여율, 월별 스냅샷과 원시 데이터 표시.
+2. **단기:** 신규 기여자 코호트 N개월 유지율과 대상 저장소 자동 월간 실행.
+3. **단기:** HF 모델 카드 룹브릭 13항목 (§13.5) → card_score 정밀화. 가중치 변경 없음.
+4. **중기 (1–2개월):** OpenSSF Scorecard 부분 통합 → Health=5를 Health=3 + Security=5로 분해 (§13.2).
+5. **장기 (3–6개월):** Truck Factor (§13.4) → People-Risk 신규 카테고리 또는 Health 확장.
 6. **장기:** Eval Benchmark presence (§13.5) → HF Quality 신규 메트릭.
 7. **계속 관찰:** Sentiment, arXiv mentions는 도입 비용 대비 신호 가치 미확인.
 
@@ -862,6 +926,9 @@ CHAOSS 페이지에 "Bus Factor"와 "New Contributor Onboarding Rate"는 별도 
 - **huggingface_hub ModelInfo API**: https://huggingface.co/docs/huggingface_hub/v1.2.2/en/package_reference/hf_api#huggingface_hub.ModelInfo
 - **GitHub REST API**: https://docs.github.com/en/rest
 - **GitHub GraphQL API**: https://docs.github.com/en/graphql
+- **GitHub contributor 목록과 첫 500개 사용자 연결 한계**: https://docs.github.com/en/rest/repos/repos#list-repository-contributors
+- **GitHub stargazer 목록 접근 제한**: https://github.blog/changelog/2026-06-30-upcoming-access-restrictions-to-public-api-endpoints-and-ui-views/
+- **Vercel private Blob**: https://vercel.com/docs/vercel-blob/private-storage
 - **HN Algolia Search API**: https://hn.algolia.com/api
 
 ### 본 시스템 코드 진입점
@@ -872,6 +939,7 @@ CHAOSS 페이지에 "Bus Factor"와 "New Contributor Onboarding Rate"는 별도 
 | 수집기 | `src/lib/collectors/{github-graphql,github-rest,github-search,github-scraper,star-quality,huggingface,hackernews,reddit,stackoverflow,youtube}.ts` |
 | 오케스트레이션 | `src/lib/orchestrator.ts`, `src/inngest/functions/analyze.ts` |
 | 인프라 | `src/lib/{rate-limiter.ts,retry.ts,cache.ts}` |
+| 관리자 운영 | `src/lib/admin/`, `src/components/admin/`, `src/app/admin/` |
 | HTTP API | `src/app/api/{analyze,status/[id],report/[id],inngest}/route.ts` |
 | 리포트 UI | `src/app/report/[platform]/[...slug]/page.tsx` |
 
@@ -897,4 +965,4 @@ CHAOSS 페이지에 "Bus Factor"와 "New Contributor Onboarding Rate"는 별도 
 
 ---
 
-*문서 버전: 2026-04-25 통합본. 메가 OSS 측정값은 같은 일자 스냅샷이며 시간이 지나면 달라집니다.*
+*문서 버전: 2026-07-25. §10 메가 OSS 측정값은 2026-04-25 스냅샷이며 시간이 지나면 달라집니다.*

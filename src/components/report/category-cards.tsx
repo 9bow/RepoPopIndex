@@ -4,6 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/contexts/locale-context";
 import { MetricName } from "@/components/metric-name";
+import {
+  getCategoryDescription,
+  getCategoryLabel,
+} from "@/lib/i18n/category-labels";
 import type { CategoryScore } from "@/lib/types";
 
 function barColor(score: number): string {
@@ -19,7 +23,7 @@ export function CategoryCards({
 }: {
   categoryScores: Record<string, CategoryScore>;
 }) {
-  const { d } = useLocale();
+  const { d, locale } = useLocale();
   const entries = Object.entries(categoryScores);
 
   if (entries.length === 0) {
@@ -35,7 +39,7 @@ export function CategoryCards({
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-sm font-medium">
-                {cat.name || key}
+                {getCategoryLabel(key, cat.name, locale)}
               </CardTitle>
               {cat.insufficient ? (
                 <Badge variant="secondary" className="text-xs">
@@ -49,6 +53,9 @@ export function CategoryCards({
             </div>
           </CardHeader>
           <CardContent>
+            <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
+              {getCategoryDescription(key, locale)}
+            </p>
             {!cat.insufficient && (
               <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-muted/70">
                 <div

@@ -4,9 +4,12 @@ import { fetchWithRetry } from "@/lib/retry";
 const GITHUB_RAW = "https://raw.githubusercontent.com";
 const NPM_API = "https://api.npmjs.org/downloads/point/last-month";
 const PYPI_API = "https://pypistats.org/api/packages";
+const PYPI_METADATA_API = "https://pypi.org/pypi";
 
-async function detectNpmPackageName(owner: string, repo: string): Promise<string> {
-  // 1. Try to fetch package.json from default branch
+async function detectNpmPackageName(
+  owner: string,
+  repo: string
+): Promise<string | null> {
   for (const branch of ["main", "master"]) {
     try {
       const res = await fetch(
@@ -23,8 +26,61 @@ async function detectNpmPackageName(owner: string, repo: string): Promise<string
       // continue
     }
   }
-  // 2. Fallback: use repo name (works for react, vue, axios, etc.)
-  return repo;
+  return null;
+}
+
+export function pointsToRepository(
+  values: Array<string | undefined>,
+  owner: string,
+  repo: string
+): boolean {
+  const target = `github.com/${owner}/${repo}`.toLowerCase();
+  return values.some((value) => {
+    const normalized = value
+      ?.toLowerCase()
+      .replace(/^git\+/, "")
+      .replace("github.com:", "github.com/")
+      .replace(/\.git(?=$|[/?#])/, "");
+    if (!normalized) return false;
+    const targetIndex = normalized.indexOf(target);
+    if (targetIndex < 0) return false;
+    const boundary = normalized[targetIndex + target.length];
+    return boundary === undefined || boundary === "/" || boundary === "?" || boundary === "#";
+  });
+}
+
+async function verifyPypiPackage(
+  packageName: string,
+  owner: string,
+  repo: string
+): Promise<boolean> {
+  try {
+    const response = await fetchWithRetry(
+      `${PYPI_METADATA_API}/${encodeURIComponent(packageName)}/json`,
+      {}
+    );
+    if (!response.ok) return false;
+    const body = (await response.json()) as {
+      info?: {
+        home_page?: string;
+        project_url?: string;
+        project_urls?: Record<string, string>;
+      };
+    };
+    const info = body.info;
+    if (!info) return false;
+    return pointsToRepository(
+      [
+        info.home_page,
+        info.project_url,
+        ...Object.values(info.project_urls ?? {}),
+      ],
+      owner,
+      repo
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function fetchNpmDownloads(packageName: string): Promise<number | null> {
@@ -63,11 +119,14 @@ export async function collectPackageDownloads(
   repo: string
 ): Promise<CollectorResult> {
   const pypiName = repo.replace(/_/g, "-");
-  const npmName = await detectNpmPackageName(owner, repo);
+  const [npmName, pypiVerified] = await Promise.all([
+    detectNpmPackageName(owner, repo),
+    verifyPypiPackage(pypiName, owner, repo),
+  ]);
 
   const [npmDownloads, pypiDownloads] = await Promise.all([
-    fetchNpmDownloads(npmName),
-    fetchPypiDownloads(pypiName),
+    npmName ? fetchNpmDownloads(npmName) : Promise.resolve(null),
+    pypiVerified ? fetchPypiDownloads(pypiName) : Promise.resolve(null),
   ]);
 
   return {

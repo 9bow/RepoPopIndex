@@ -35,7 +35,7 @@ export const GITHUB_METRICS: MetricConfig[] = [
   { key: "forks", category: "G1", maxI: 50000, weight: 1, cumulative: true },
   { key: "watchers", category: "G1", maxI: 10000, weight: 1, cumulative: true },
   // G2: Activity (from github-rest + github-graphql)
-  { key: "G2.4", category: "G2", maxI: 500, weight: 3, cumulative: false },
+  { key: "G2.4", category: "G2", maxI: 500, weight: 3, cumulative: true },
   { key: "G2.5", category: "G2", maxI: 2000, weight: 2, cumulative: false },
   { key: "G2.2", category: "G2", maxI: 1.0, weight: 2, cumulative: false, linear: true },
   { key: "G2.3_additions", category: "G2", maxI: 50000, weight: 1, cumulative: false },

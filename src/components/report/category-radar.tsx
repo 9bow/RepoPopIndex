@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useLocale } from "@/contexts/locale-context";
+import { getCategoryLabel } from "@/lib/i18n/category-labels";
 import type { CategoryScore } from "@/lib/types";
 
 interface Props {
@@ -17,9 +18,9 @@ interface Props {
 }
 
 export function CategoryRadar({ categoryScores, excludedCategories }: Props) {
-  const { d } = useLocale();
+  const { d, locale } = useLocale();
   const data = Object.entries(categoryScores).map(([key, cat]) => ({
-    category: cat.name || key,
+    category: getCategoryLabel(key, cat.name, locale),
     score: excludedCategories.includes(key) ? 0 : cat.score,
   }));
 

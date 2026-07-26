@@ -52,13 +52,13 @@ async function fetchCommunityProfile(owner: string, repo: string): Promise<Recor
   return res.json() as Promise<Record<string, unknown>>;
 }
 
-async function fetchReleases(owner: string, repo: string): Promise<unknown[]> {
+async function fetchReleases(owner: string, repo: string): Promise<unknown[] | null> {
   await waitForRateLimit("github-rest");
   const res = await fetchWithRetry(
     `${BASE_URL}/repos/${owner}/${repo}/releases?per_page=100`,
     { headers: authHeaders() }
   );
-  if (!res.ok) return [];
+  if (!res.ok) return null;
   return res.json() as Promise<unknown[]>;
 }
 
@@ -143,9 +143,9 @@ export async function collectGitHubRest(
 
     // G7.1-G7.4 from community profile
     let g71: number | null = null;
-    let g72 = 0;
-    let g73 = 0;
-    let g74 = 0;
+    let g72: number | null = null;
+    let g73: number | null = null;
+    let g74: number | null = null;
 
     if (communityProfile) {
       g71 = typeof communityProfile.health_percentage === "number"
@@ -156,21 +156,27 @@ export async function collectGitHubRest(
         g72 = files.contributing !== null && files.contributing !== undefined ? 1 : 0;
         g73 = files.code_of_conduct !== null && files.code_of_conduct !== undefined ? 1 : 0;
         g74 = files.readme !== null && files.readme !== undefined ? 1 : 0;
+      } else {
+        g72 = 0;
+        g73 = 0;
+        g74 = 0;
       }
     }
 
     // G5.1-G5.3 from releases
     const sinceMs = sinceDate.getTime();
     type Release = { published_at?: string; assets?: { download_count?: number }[] };
-    const periodReleases = (releases as Release[]).filter((r) => {
-      if (!r.published_at) return false;
-      return new Date(r.published_at).getTime() >= sinceMs;
-    });
+    const periodReleases = releases
+      ? (releases as Release[]).filter((r) => {
+          if (!r.published_at) return false;
+          return new Date(r.published_at).getTime() >= sinceMs;
+        })
+      : null;
 
-    const g51 = periodReleases.length;
+    const g51 = periodReleases?.length ?? null;
 
     let g52: number | null = null;
-    if (periodReleases.length >= 2) {
+    if (periodReleases && periodReleases.length >= 2) {
       const dates = periodReleases
         .map((r) => new Date(r.published_at!).getTime())
         .sort((a, b) => a - b);
@@ -181,10 +187,15 @@ export async function collectGitHubRest(
       g52 = gaps.reduce((s, v) => s + v, 0) / gaps.length;
     }
 
-    const g53 = periodReleases.reduce((sum, r) => {
-      const downloads = (r.assets ?? []).reduce((s, a) => s + (a.download_count ?? 0), 0);
-      return sum + downloads;
-    }, 0);
+    const g53 = periodReleases
+      ? periodReleases.reduce((sum, r) => {
+          const downloads = (r.assets ?? []).reduce(
+            (s, a) => s + (a.download_count ?? 0),
+            0
+          );
+          return sum + downloads;
+        }, 0)
+      : null;
 
     return {
       source: "github-rest",

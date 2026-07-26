@@ -33,9 +33,12 @@ const en = {
       "Some data sources were unavailable — score is based on available data only.",
     categoryOverview: "Category overview",
     categoryBreakdown: "Category breakdown",
+    contributorFlow: "Contributor flow & response",
+    performanceHistory: "Monthly measurement history",
     starQuality: "Star quality analysis",
     socialBuzz: "Social buzz",
     detailedMetrics: "Detailed metrics",
+    rawData: "Collected GitHub data",
     footerFormula:
       "Score formula: S_i = log(1 + raw) / log(1 + max). Categories are weighted and averaged. Missing data is excluded proportionally.",
     analyzed: "Analyzed",
@@ -44,7 +47,7 @@ const en = {
     loadFailed: "Failed to load report",
     notReady: "Report not ready",
     partialResult: "Partial result",
-    partialMissing: "missing",
+    partialMissing: "affected source or limit",
     lastViewBanner: "Showing your last view of this report — refreshing…",
     periods: {
       "1w": "1 week",
@@ -52,6 +55,103 @@ const en = {
       "3m": "3 months",
       "6m": "6 months",
       "1y": "1 year",
+    },
+  },
+  contributors: {
+    eyebrow: "12-month measurement ledger",
+    title: "Contributor flow",
+    subtitle:
+      "Monthly activity, observed newcomer entry, repeat participation, and repository-affiliation signals.",
+    exportCsv: "Download CSV",
+    active: "Active contributors",
+    activeHelp: "Unique people with at least one commit, pull request, or issue in the displayed 12 months.",
+    observedNew: "Observed new",
+    observedNewHelp: "People first seen inside the 24-month observation window; not a lifetime newcomer count.",
+    firstTimeSignals: "GitHub first-time signals",
+    firstTimeSignalsHelp: "GitHub FIRST_TIMER or FIRST_TIME_CONTRIBUTOR associations, shown as supporting evidence only.",
+    retention: "Last complete month retention",
+    retentionHelp: "Share of the previous month’s active people who were also active in the latest completed month.",
+    affiliated: "Repository-affiliated",
+    external: "Other public contributors",
+    unknown: "Unknown association",
+    verifiedTitle: "Administrator-verified employment",
+    verifiedInternal: "Checked internal",
+    verifiedOther: "Not checked as internal",
+    verifiedHelp:
+      "This uses the administrator-maintained GitHub ID roster. It is separate from GitHub repository affiliation and may become stale between roster reviews.",
+    responseTitle: "Response discipline",
+    humanMedian: "First human response",
+    maintainerMedian: "Repository-affiliated response",
+    responseCoverage: "Human response coverage",
+    maintainerCoverage: "Affiliated response coverage",
+    unanswered: "unanswered",
+    sample: "issues sampled",
+    noData: "Contributor-flow data is unavailable for this report.",
+    partialData: "Partial API sample",
+    completeData: "Complete within collection cap",
+    methodology:
+      "Observed new means first seen within the 24-month API window. Affiliated combines owner, organization member, and collaborator; it does not prove employment.",
+    responseMethodology:
+      "Response medians use the latest 30 issues. Comments by the issue author and bots are excluded; unanswered issues remain visible in coverage.",
+    responsePartial:
+      "At least one sampled issue had more than 20 comments. A valid first response after the first 20 comments may be missed.",
+    month: "Month",
+    activity: "Activity",
+    contributors: "Contributors",
+    new: "Observed new",
+    returning: "Returning",
+    retentionShort: "Retention",
+    association: "Affiliation",
+    partialMonth: "in progress",
+    commits: "commits",
+    pullRequests: "PRs",
+    issues: "issues",
+  },
+  snapshots: {
+    eyebrow: "Monthly snapshots without automatic expiry",
+    title: "Measurement history",
+    subtitle:
+      "The latest complete or partial analysis in each calendar month is stored without automatic expiry.",
+    methodology:
+      "Baseline is the earliest saved month, latest is the most recent saved month, and change is the difference in composite score points. Re-running within the same month replaces that month’s snapshot. No-expiry storage is not a backup guarantee.",
+    exportCsv: "Download history CSV",
+    month: "Month",
+    composite: "Composite",
+    contributors: "Active contributors",
+    newContributors: "Observed new",
+    retention: "Retention",
+    response: "Human response",
+    quality: "Data quality",
+    complete: "Complete",
+    partial: "Partial",
+    unknown: "Unknown",
+    missing: "Missing",
+    baseline: "Baseline",
+    latest: "Latest",
+    change: "Change",
+  },
+  rawData: {
+    eyebrow: "Traceable collection evidence",
+    title: "Collected GitHub data",
+    subtitle:
+      "These are the collected or derived values before score normalization, with supporting metadata extracted from GitHub responses. Request headers, access tokens, and oversized full HTTP bodies are never stored.",
+    exportJson: "Download JSON",
+    exportNote:
+      "Collected or derived pre-normalization values from GitHub API responses; this is not a byte-for-byte archive of full HTTP response bodies.",
+    readingTitle: "How to read this section",
+    readingGuide:
+      "Raw value is the value before scoring. Expand JSON details to inspect supporting metadata. N/A means collection failed or GitHub did not provide a usable value; it is not treated as zero.",
+    collectedAt: "Collected",
+    items: "items",
+    rawValue: "raw value",
+    rawJson: "Show supporting JSON",
+    openGitHub: "Open on GitHub",
+    error: "Collection warning",
+    unknownSource: "Calculation inputs collected from an external source.",
+    status: {
+      complete: "collected",
+      partial: "partial",
+      failed: "failed",
     },
   },
   scoreGauge: {
@@ -79,6 +179,15 @@ const en = {
     weight: "Weight",
     contribution: "Contribution",
     openSource: "Open the source data on the provider",
+    guideTitle: "How the score table works",
+    guideRaw:
+      "Raw is the value collected from the provider before scoring. N/A means unavailable, not zero.",
+    guideNormalized:
+      "Normalized converts different units to a comparable 0–1 scale. Some lower-is-better metrics are reversed.",
+    guideWeight:
+      "Weight expresses the relative importance of a metric within its category.",
+    guideContribution:
+      "Contribution is the normalized value after recency adjustment, multiplied by its weight.",
   },
   starQuality: {
     title: "Star quality assessment",
@@ -146,13 +255,13 @@ const en = {
       "The Social Buzz category aggregates up to four sources: Hacker News, Reddit, Stack Overflow, and YouTube. Sub-source weights (HN 48%, Reddit 30%, SO 12%, YT 9%) are calibrated from empirical data across 25 major OSS repos — Reddit is typically unavailable (credentials not configured), and SO/YouTube yield at most 1 item per 3-month window. In practice, Hacker News is the dominant signal (~70% of the ceiling when Reddit is absent). Missing sources (null) are excluded from both numerator and denominator; zero-value sources remain in the denominator with their reduced weight.",
     starAbuseTitle: "Star quality & abuse correction",
     starAbuseBody:
-      "Raw star counts are adjusted by a User Quality Score (UQS) computed from the 100 most recent stargazers. Each account is evaluated on age, follower count, and public repository count. The resulting quality factor (0–1) scales the star-based popularity score. When an unusual spike in starring activity is detected, a burst flag is recorded and the quality factor is reduced further.",
+      "A separate quality-adjusted star signal is computed from up to 100 recent visible stargazers. Each sampled account is evaluated on age, follower count, and public repository count. The resulting UQS factor (0–1) is multiplied by the total star count to produce G8.1, while the raw star count remains a separate metric. An unusual arrival spike records a review flag; it does not automatically reduce the factor further.",
     formulaTitle: "Composite score formula",
     formulaBody:
       "Each metric is normalized as: S_i = log(1 + raw) / log(1 + max), where max is a calibrated ceiling for top-tier values. Cumulative (all-time) metrics are multiplied by a recency factor of 0.75 to discount stock signals vs. flow signals. Metrics within a category are weight-averaged into a category score (0–100). Category scores are then weight-averaged into the final composite score.",
     partialTitle: "Partial results",
     partialBody:
-      "When one or more data sources fail or are rate-limited, the report is marked as partial. The missing sources are listed and their weights are redistributed proportionally so the score remains meaningful. A backup of the most recent successful collection is used when available (reason: served_from_backup). Partial reports are clearly flagged in the UI.",
+      "When a core source fails, a category lacks enough data, or an optional source is rate-limited, the report shows a partial-data warning. Missing metric and category weights are excluded from the available denominator. Cached fallback is available only for Reddit, Stack Overflow, and YouTube when a recent successful collection exists.",
   },
   about: {
     title: "About RepoPopIndex",
@@ -163,7 +272,7 @@ const en = {
       "Star counts are easy to inflate and slow to decay. They reward attention, not adoption. We score across activity, community, downstream integration, release cadence, social discussion, and project health so a repository's real footprint shows through. A polished but inactive project should not look identical to one that ships every week.",
     dataSourcesTitle: "Data sources",
     dataSourcesBody:
-      "GitHub REST and GraphQL APIs, the HuggingFace Hub API, Hacker News (Algolia), Reddit, Stack Exchange (Stack Overflow), and YouTube Data API. Every signal is fetched on demand, log-normalized, and cached in Upstash Redis. There is no persistent database — analyses are reproducible from public APIs.",
+      "GitHub REST and GraphQL APIs, the HuggingFace Hub API, Hacker News (Algolia), Reddit, Stack Exchange (Stack Overflow), and YouTube Data API. Signals are collected on demand and cached in Upstash Redis; monthly snapshots are stored without automatic expiry. There is no relational database. Because upstream data can change or disappear, a later re-run is not guaranteed to reproduce an earlier snapshot exactly.",
     openSourceTitle: "Open source",
     openSourceBody:
       "The code is MIT licensed and lives on GitHub. Issues, PRs, and discussions about scoring, weights, or new signal sources are welcome. The methodology page documents how the score is computed today.",
@@ -204,9 +313,12 @@ const ko: typeof en = {
     partialBanner: "일부 데이터를 가져오지 못했습니다. 수집된 데이터만으로 점수를 계산했습니다.",
     categoryOverview: "분야별 개요",
     categoryBreakdown: "분야별 세부 점수",
+    contributorFlow: "기여자 흐름 및 응답성",
+    performanceHistory: "월별 측정 이력",
     starQuality: "별점 품질 분석",
     socialBuzz: "커뮤니티 반응",
     detailedMetrics: "상세 지표",
+    rawData: "GitHub 수집 데이터",
     footerFormula:
       "점수 식: S_i = log(1 + raw) / log(1 + max). 카테고리별 가중 평균이며, 누락된 데이터는 비례해 제외합니다.",
     analyzed: "분석 일시",
@@ -215,7 +327,7 @@ const ko: typeof en = {
     loadFailed: "리포트를 불러오지 못했습니다.",
     notReady: "리포트가 아직 준비되지 않았습니다.",
     partialResult: "일부 결과",
-    partialMissing: "누락된 소스",
+    partialMissing: "영향받은 소스·제한",
     lastViewBanner: "마지막으로 저장된 보고서를 표시 중입니다 — 갱신 중…",
     periods: {
       "1w": "1주",
@@ -223,6 +335,103 @@ const ko: typeof en = {
       "3m": "3개월",
       "6m": "6개월",
       "1y": "1년",
+    },
+  },
+  contributors: {
+    eyebrow: "최근 12개월 측정 원장",
+    title: "기여자 흐름",
+    subtitle:
+      "월별 활동, 관측 신규 유입, 재참여율과 저장소 연관 신호를 함께 표시합니다.",
+    exportCsv: "CSV 다운로드",
+    active: "활동 기여자",
+    activeHelp: "표시된 최근 12개월 동안 커밋·PR·이슈 중 하나 이상에 참여한 고유 계정 수입니다.",
+    observedNew: "관측 신규",
+    observedNewHelp: "최근 24개월 관측 구간 안에서 처음 확인된 계정 수이며, 저장소 전체 역사 기준 신규는 아닙니다.",
+    firstTimeSignals: "GitHub 최초 기여 신호",
+    firstTimeSignalsHelp: "GitHub의 FIRST_TIMER 또는 FIRST_TIME_CONTRIBUTOR 연관 신호이며, 보조 근거로만 표시합니다.",
+    retention: "최근 완료 월 재참여율",
+    retentionHelp: "직전 달 활동자 중 최근 완료 월에도 다시 활동한 계정의 비율입니다.",
+    affiliated: "저장소 연관",
+    external: "기타 공개 기여자",
+    unknown: "연관 분류 불가",
+    verifiedTitle: "관리자 확인 고용 구분",
+    verifiedInternal: "내부 직원 확인",
+    verifiedOther: "내부 미확인",
+    verifiedHelp:
+      "관리자가 관리 페이지에서 GitHub ID별로 확인한 명부입니다. GitHub 저장소 연관 신호와 별개이며, 명부 검토 사이에는 변경이 반영되지 않을 수 있습니다.",
+    responseTitle: "응답 운영",
+    humanMedian: "첫 사람 응답",
+    maintainerMedian: "저장소 연관 계정 응답",
+    responseCoverage: "사람 응답률",
+    maintainerCoverage: "연관 계정 응답률",
+    unanswered: "미응답",
+    sample: "개 이슈 표본",
+    noData: "이 리포트에는 기여자 흐름 데이터가 없습니다.",
+    partialData: "API 일부 표본",
+    completeData: "수집 상한 내 전체",
+    methodology:
+      "관측 신규는 최근 24개월 API 범위에서 처음 나타난 계정입니다. 저장소 연관은 소유자·조직원·협업자를 합친 값이며 고용 관계를 의미하지 않습니다.",
+    responseMethodology:
+      "응답 중앙값은 최신 이슈 30개 표본을 사용합니다. 이슈 작성자 본인과 봇 댓글은 제외하며, 미응답 이슈는 응답률에 남겨 둡니다.",
+    responsePartial:
+      "표본 이슈 중 하나 이상이 댓글 20개를 초과했습니다. 20번째 댓글 뒤의 유효한 첫 응답은 누락될 수 있습니다.",
+    month: "월",
+    activity: "활동",
+    contributors: "기여자",
+    new: "관측 신규",
+    returning: "재참여",
+    retentionShort: "유지율",
+    association: "연관 구분",
+    partialMonth: "집계 중",
+    commits: "커밋",
+    pullRequests: "PR",
+    issues: "이슈",
+  },
+  snapshots: {
+    eyebrow: "자동 만료 없는 월별 스냅샷",
+    title: "측정 이력",
+    subtitle:
+      "달력 월마다 가장 최근의 완전 또는 일부 분석값을 자동 만료 없이 저장합니다.",
+    methodology:
+      "기준선은 저장된 첫 달, 최근은 마지막 달, 변화는 두 종합 점수의 차이입니다. 같은 달에 다시 분석하면 그 달의 스냅샷을 최신 실행값으로 갱신합니다. 자동 만료가 없다는 것이 별도 백업을 보장하지는 않습니다.",
+    exportCsv: "이력 CSV 다운로드",
+    month: "월",
+    composite: "종합 점수",
+    contributors: "활동 기여자",
+    newContributors: "관측 신규",
+    retention: "재참여율",
+    response: "사람 응답",
+    quality: "데이터 품질",
+    complete: "완전 수집",
+    partial: "일부 수집",
+    unknown: "상태 미기록",
+    missing: "누락",
+    baseline: "기준선",
+    latest: "최근",
+    change: "변화",
+  },
+  rawData: {
+    eyebrow: "추적 가능한 수집 근거",
+    title: "GitHub 수집 데이터",
+    subtitle:
+      "GitHub 응답에서 추출한 수집값 또는 점수 정규화 전 파생값과 근거 메타데이터입니다. 요청 헤더·접근 토큰과 용량이 큰 전체 HTTP 응답 본문은 저장하지 않습니다.",
+    exportJson: "JSON 다운로드",
+    exportNote:
+      "GitHub API 응답에서 추출한 수집값 또는 정규화 전 파생값이며, 전체 HTTP 응답 본문을 바이트 단위로 보존한 자료는 아닙니다.",
+    readingTitle: "읽는 방법",
+    readingGuide:
+      "원시값은 점수로 바꾸기 전 값입니다. JSON 세부 정보를 펼치면 계산 근거 메타데이터를 볼 수 있습니다. N/A는 수집 실패 또는 사용 가능한 값이 없다는 뜻이며 0으로 계산하지 않습니다.",
+    collectedAt: "수집 시각",
+    items: "개 항목",
+    rawValue: "원시값",
+    rawJson: "근거 JSON 보기",
+    openGitHub: "GitHub에서 확인",
+    error: "수집 경고",
+    unknownSource: "외부 제공처에서 수집한 계산 입력값입니다.",
+    status: {
+      complete: "수집 완료",
+      partial: "일부 수집",
+      failed: "수집 실패",
     },
   },
   scoreGauge: {
@@ -250,6 +459,15 @@ const ko: typeof en = {
     weight: "가중치",
     contribution: "기여도",
     openSource: "원본 데이터를 제공처에서 열기",
+    guideTitle: "점수표 읽는 방법",
+    guideRaw:
+      "원시값은 제공처에서 수집한 점수 계산 전 값입니다. N/A는 0이 아니라 수집할 수 없었다는 뜻입니다.",
+    guideNormalized:
+      "정규값은 단위가 다른 지표를 비교할 수 있도록 0~1로 바꾼 값입니다. 짧을수록 좋은 지표는 방향을 반대로 계산합니다.",
+    guideWeight:
+      "가중치는 같은 분야 안에서 해당 지표가 차지하는 상대적 중요도입니다.",
+    guideContribution:
+      "기여도는 정규값에 최신성 보정과 가중치를 적용해 분야 점수에 더한 값입니다.",
   },
   starQuality: {
     title: "별점 품질 평가",
@@ -316,13 +534,13 @@ const ko: typeof en = {
       "소셜 버즈 분야는 Hacker News, Reddit, Stack Overflow, YouTube 네 가지 소스를 합산합니다. 서브소스 가중치(HN 48%, Reddit 30%, SO 12%, YT 9%)는 25개 주요 OSS 저장소 실측 데이터로 보정되었습니다. Reddit은 대부분 자격 정보 미설정으로 null 반환, SO/YouTube는 3개월 기간 내 최대 1건 수준입니다. 실제로는 Hacker News가 지배적 신호(Reddit 제외 시 상한의 ~70%)입니다. null 소스는 분자·분모 모두에서 제외되며, 0값 소스는 감소된 가중치로 분모에 남습니다.",
     starAbuseTitle: "별점 품질 및 어뷰징 보정",
     starAbuseBody:
-      "원시 별점 수는 최근 100명의 스타게이저를 대상으로 계산한 UQS(사용자 품질 점수)로 보정합니다. 계정 나이·팔로워 수·공개 저장소 수를 기준으로 품질 계수(0~1)를 산출해 별점 기반 점수를 조정합니다. 비정상적인 별점 급증이 감지되면 품질 계수를 추가로 낮추고 급증 플래그를 기록합니다.",
+      "조회 가능한 최근 스타게이저 최대 100명을 표본으로 별도의 품질 보정 별점 신호를 계산합니다. 계정 나이·팔로워 수·공개 저장소 수로 UQS 계수(0~1)를 구한 뒤 전체 별점 수와 곱해 G8.1을 만들며, 원시 별점 수는 별도 지표로 유지합니다. 비정상적인 유입 급증은 검토 플래그만 기록하고 품질계수를 자동으로 추가 감점하지 않습니다.",
     formulaTitle: "종합 점수 공식",
     formulaBody:
       "각 지표는 S_i = log(1 + raw) / log(1 + max) 공식으로 정규화합니다(max는 최상위 수준에 맞춰 보정된 상한값). 누적(전체 기간) 지표에는 최신성 계수 0.75를 곱해 스톡 신호와 플로우 신호의 차이를 반영합니다. 분야 내 지표를 가중 평균하여 분야 점수(0~100)를 구하고, 분야 점수를 다시 가중 평균해 최종 종합 점수를 산출합니다.",
     partialTitle: "일부 결과 처리",
     partialBody:
-      "하나 이상의 데이터 소스가 실패하거나 요청 제한에 걸린 경우 리포트는 '일부 결과'로 표시됩니다. 누락된 소스 목록이 표시되며 해당 가중치는 나머지 소스에 비례 재분배되어 점수의 의미가 유지됩니다. 가장 최근의 성공적인 수집 데이터가 있으면 백업으로 사용됩니다(reason: served_from_backup). 일부 결과 리포트는 UI에서 명확히 표시됩니다.",
+      "핵심 소스가 실패하거나 분야 데이터가 부족하거나 선택적 소스가 요청 제한에 걸리면 리포트에 일부 데이터 경고를 표시합니다. 누락된 지표·분야의 가중치는 사용 가능한 분모에서 제외됩니다. 최근 성공값 백업은 Reddit·Stack Overflow·YouTube에만 제공됩니다.",
   },
   about: {
     title: "RepoPopIndex 소개",
@@ -333,7 +551,7 @@ const ko: typeof en = {
       "별 수는 부풀리기 쉽고 가라앉히기 어렵습니다. 주목도는 측정해도 실제 도입은 측정하지 못합니다. 본 프로젝트는 활동성·커뮤니티·다운스트림 통합·릴리스 주기·소셜 논의·프로젝트 건전성을 함께 평가해 저장소의 실질 footprint가 드러나도록 합니다. 잘 꾸며졌지만 멈춰있는 프로젝트와 매주 출시되는 프로젝트가 같은 점수를 받으면 안 됩니다.",
     dataSourcesTitle: "데이터 소스",
     dataSourcesBody:
-      "GitHub REST·GraphQL API, HuggingFace Hub API, Hacker News(Algolia), Reddit, Stack Exchange(Stack Overflow), YouTube Data API를 사용합니다. 모든 신호는 요청 시점에 수집되어 로그 정규화 후 Upstash Redis에 캐시됩니다. 영구 데이터베이스는 사용하지 않으며, 모든 분석은 공개 API만으로 재현 가능합니다.",
+      "GitHub REST·GraphQL API, HuggingFace Hub API, Hacker News(Algolia), Reddit, Stack Exchange(Stack Overflow), YouTube Data API를 사용합니다. 신호는 요청 시점에 수집해 Upstash Redis에 캐시하고, 월별 스냅샷은 자동 만료 없이 저장합니다. 관계형 데이터베이스는 사용하지 않습니다. 상위 데이터가 변경·삭제될 수 있으므로 나중에 다시 실행한 결과가 과거 스냅샷과 완전히 같다고 보장하지는 않습니다.",
     openSourceTitle: "오픈소스",
     openSourceBody:
       "코드는 MIT 라이선스로 GitHub에 공개되어 있습니다. 점수 산출·가중치·새로운 신호 소스에 대한 이슈·PR·토론을 환영합니다. 현재 점수가 어떻게 계산되는지는 산출 방식 페이지에 정리되어 있습니다.",

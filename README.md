@@ -2,7 +2,7 @@
 
 GitHub 저장소와 Hugging Face 모델/데이터셋의 **인기·활동·건강성**을 단일 점수(0–100)로 정량화하는 분석 도구입니다. URL 하나만 붙여 넣으면 여러 공식 API에서 메트릭을 수집·정규화·가중합산하여 카테고리별 세부 점수와 종합 점수를 보여주는 리포트를 생성합니다.
 
-> 설계 원칙: **매 요청마다 fresh 수집**, **영구 DB 없음**, **불필요한 중간 산출물 저장 금지**. 결과 리포트는 Upstash Redis에 30일 TTL로만 보관됩니다.
+> 설계 원칙: **매 요청마다 fresh 수집**, **관계형 DB 없음**, **계산 근거를 리포트에서 추적 가능하게 보존**. 상세 리포트는 Upstash Redis에 30일 보관하고, 월별 비교 스냅샷은 같은 달 값을 갱신하며 장기 보존합니다.
 
 ---
 
@@ -32,10 +32,29 @@ pnpm dev
 | `HF_TOKEN` | ⛔ | Hugging Face 인증 (없어도 공개 메타는 호출 가능) |
 | `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` | 배포 시 | Inngest Cloud로 분석을 백그라운드 실행 |
 | `INNGEST_APP_ID` | 배포 시 | Inngest 대시보드 sync 후 표시되는 앱 ID (기본값: `repopopindex`) |
+| `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET` | 관리자 운영 시 | `/admin` 로그인 비밀번호와 12시간 서명 세션. 세션 비밀값은 32바이트 이상 난수 권장 |
+| `ADMIN_USER` | ⛔ | 관리자 화면·내부 직원 판정 이력에 표시할 사용자명 (기본값: `admin`) |
+| `BLOB_READ_WRITE_TOKEN` | 월별 백업 시 | 비공개 Vercel Blob에 JSON·CSV·XLSX 저장/복원. 프로젝트에 private Blob store를 연결하면 설정됨 |
 | `MAX_CONCURRENT_ANALYSES` | ⛔ | 동시 분석 수 (기본 5) |
 | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_USER_AGENT` | ⛔ | Reddit 소셜 수집기 (없으면 HN만 사용) |
 | `STACKEXCHANGE_KEY` | ⛔ | Stack Overflow 수집기 쿼터 상향 (없어도 300 req/day 익명 가능) |
 | `YOUTUBE_API_KEY` | ⛔ | YouTube Data API v3 수집기 (없으면 건너뜀) |
+
+---
+
+## 관리자 월별 운영
+
+`/admin`은 공개 리포트와 분리된 인증 화면입니다.
+
+1. GitHub 공개 저장소 URL, 분석 기간, 매월 실행일(1–28일)을 등록합니다.
+2. 초기 등록 시 커밋 기여자 명부와 stargazer 표본 수집을 Inngest에 예약합니다.
+3. 기여자는 GitHub `node_id`를 우선 식별자로 저장하며, 관리자가 내부 직원 여부를 직접 확인합니다. GitHub REST contributor API는 첫 500개 작성자 이메일만 GitHub 사용자와 연결할 수 있으므로, 그 뒤 익명 작성자는 안정적인 ID 명부에 포함되지 않을 수 있습니다.
+4. 매일 10:00 KST에 실행일이 도래한 저장소를 찾아 기존 분석 파이프라인을 호출합니다.
+5. 분석 완료 후 전체 리포트 JSON, 평면 지표 CSV, 다중 시트 네이티브 XLSX를 private Vercel Blob에 월별 파일로 보관합니다. 과거 리포트는 조회할 때만 JSON 파일을 읽으므로 Redis에 큰 리포트를 장기 상주시킬 필요가 없습니다.
+
+XLSX 시트는 `요약`, `분야 점수`, `전체 지표`, `월별 기여자`, `기여자 명부`, `Stargazer 분포`로 구성됩니다. 개인별 기여자·stargazer 명부는 관리자 화면과 비공개 다운로드에서만 제공하고, 공개 리포트에는 관리자가 확인한 내부/그 외 인원 합계만 표시합니다.
+
+Stargazer 가입일 분포는 조작 판정이 아니라 보조 검토 신호입니다. 최근 최대 1,000명의 계정 생성일과 star 시점을 캐시하여 7/30/90일 미만 계정 비율과 월별 분포를 표시합니다. 2026년 7월부터 GitHub는 stargazer 명단 API를 저장소 관리자·협업자로 제한하고 있으므로, 권한 없는 외부 저장소는 Star 총계만 확인되고 개인별 분포는 `접근 불가`로 표시됩니다. 이전 성공 캐시가 있으면 삭제하지 않고 `cached` 상태로 보존합니다.
 
 ---
 
@@ -132,12 +151,12 @@ POST /api/analyze ──► Redis Queue (zset, max 20) ──► Inngest event "
                                                              ▼
                                                      orchestrator.runAnalysis
                                                              │
-                       ┌────────────┬────────────┬───────────┼──────────────┬──────────────┐
-                       ▼            ▼            ▼           ▼              ▼              ▼
-              GitHub GraphQL  GitHub Search  GitHub REST  Dependents   Star Quality  HackerNews
-              (G1, G2.5)     (G3, G4)       (G2, G5, G7) (G6)         (G8)          (S1)
-                       │            │            │           │              │              │
-                       └────────────┴────────────┴───────────┴──────────────┴──────────────┘
+                       ┌────────────┬────────────┬───────────┼──────────────┬──────────────┬──────────────┐
+                       ▼            ▼            ▼           ▼              ▼              ▼              ▼
+              GitHub GraphQL  GitHub Search  GitHub REST  Dependents   Star Quality  Contributors   HackerNews
+              (G1, G2.5)     (G3, G4)       (G2, G5, G7) (G6)         (G8)          (월별 흐름)     (S1)
+                       │            │            │           │              │              │              │
+                       └────────────┴────────────┴───────────┴──────────────┴──────────────┴──────────────┘
                                                              │
                                                              ▼
                                                        정규화 + 가중평균
@@ -151,9 +170,9 @@ GET /report/[platform]/[...slug]  ──► getReport() ──► 캐시 히트 
 
 수집기는 `Promise.allSettled`로 동시에 실행되며 각 호출은 15초 timeout으로 보호됩니다. 한 수집기가 실패해도 나머지 카테고리는 살아남고, 카테고리의 가용 메트릭이 30% 미만이면 그 카테고리는 `insufficient`로 표시되어 종합 점수에서 제외됩니다 (`MIN_AVAILABLE_RATIO = 0.3`).
 
-### 저장소 구조 (단일 저장소)
+### 저장소 구조
 
-이 프로젝트는 **Postgres가 없습니다.** 모든 상태는 Upstash Redis에 살며, 키 네임스페이스는 다음과 같습니다 (자세한 내용은 `src/lib/cache.ts` 상단 주석):
+이 프로젝트는 **Postgres가 없습니다.** 자주 읽는 작은 상태·인덱스는 Upstash Redis에, 월별 전체 파일 백업은 private Vercel Blob에 저장합니다.
 
 | 키 패턴 | 용도 | TTL |
 |---|---|---|
@@ -162,6 +181,14 @@ GET /report/[platform]/[...slug]  ──► getReport() ──► 캐시 히트 
 | `rpi:progress:{id}` | 진행률 폴링용 라이브 업데이트 | 10분 |
 | `rpi:queue` | 분석 큐 (sorted set, 최대 20) | 1시간 sliding |
 | `rpi:rate:{source}` | 소스별 레이트 리미터 카운터 | window별 |
+| `rpi:snapshots:{platform}:{owner}/{repo}:{period}` | 달력 월별 분석 스냅샷 hash | 없음 |
+| `rpi:admin:repositories` | 관리자 등록 저장소와 실행 상태 | 없음 |
+| `rpi:admin:contributors:{repositoryId}` | 안정 ID 기반 기여자 명부·내부 판정 | 없음 |
+| `rpi:admin:stargazers:{repositoryId}` | 최근 최대 1,000명 stargazer 가입일 캐시 | 없음 |
+| `rpi:admin:stargazer-distribution:{repositoryId}` | 계정 연령·가입 월·star 월 집계와 접근 상태 | 없음 |
+| `rpi:admin:backups:{repositoryId}` | private Blob 백업 파일의 작은 인덱스 | 없음 |
+
+월별 스냅샷은 `complete`/`partial`, 누락 소스·표본 상한에 걸린 기여자 소스와 제외 카테고리를 함께 저장합니다. 전체 수집 실패 실행은 기존 월 스냅샷을 덮어쓰지 않습니다. 관리자 월별 백업은 별도 private Blob 객체이므로 30일 상세 리포트 캐시가 만료되어도 복원할 수 있습니다. 다만 별도 계정·리전으로 복제하는 재해복구까지 의미하지는 않습니다.
 
 ### URL 라우팅
 
@@ -169,6 +196,8 @@ GET /report/[platform]/[...slug]  ──► getReport() ──► 캐시 히트 
 |---|---|
 | `/` | 홈. URL 입력 → 캐노니컬 리포트 URL로 이동 |
 | `/report/[platform]/[...slug]` | 리포트 페이지. catch-all 슬러그가 `owner/repo/period`를 파싱 (HF는 owner에 `/`가 포함될 수 있음) |
+| `/admin` | 인증된 저장소 등록·명부 판정·stargazer 분포·월별 백업 관리 |
+| `/admin/repositories/[id]/backups/[backupId]` | private JSON 백업을 요청 시 복원한 읽기 전용 리포트 |
 | `/api/analyze` | POST: 분석 시작 (큐에 enqueue + Inngest 트리거) |
 | `/api/status/[id]` | GET: 진행률 + 큐 위치 |
 | `/api/inngest` | Inngest 웹훅 |
@@ -208,10 +237,11 @@ GET /report/[platform]/[...slug]  ──► getReport() ──► 캐시 히트 
 | `G3.1` | G3/Community | 기간 내 신규 이슈 수 (`type:issue created:>{since}`) |
 | `G3.2` | G3 | 기간 내 종료 이슈 수 (`type:issue closed:>{since}`) |
 | `G3.3` | G3 | 이슈 종료율 = `G3.2 / G3.1` (linear, 0–1) |
+| `G3.4` | G3 | 최신 이슈 30개 표본의 첫 사람 응답 중앙값. 작성자 본인·봇 제외; 첫 저장소 연관 계정 응답·응답률·미응답 수 별도 표시 |
 | `G4.1` | G4/Community | 기간 내 신규 PR 수 (`type:pr created:>{since}`) |
 | `G4.2` | G4 | 기간 내 머지 PR 수 (`type:pr merged:>{since}`) |
 | `G4.3` | G4 | PR 머지율 = `G4.2 / G4.1` (linear, 0–1) |
-| `G4.4` | G4 | 머지 PR 30개 샘플의 **고유 작성자 수** (외부 기여자 다양성) |
+| `G4.4` | G4 | 머지 PR 30개 표본의 **고유 작성자 수**. 내부/외부를 구분하지 않는 작성자 다양성 |
 | `G4.5` | G4 | 머지 PR의 **중앙값 머지 소요일** (낮을수록 좋음 → `inverse: true`) |
 
 ### 3) `github-rest` — 활동 통계 + 릴리즈 + 커뮤니티 프로파일
@@ -261,6 +291,18 @@ function computeUqs(node, now) {
 | `G8.2` | G8 | 최근 별 도착률 (개/일) |
 
 별 폭주 감지: 일별 카운트 중 `> 평균 × 5`가 있으면 `burstDetected=true` 플래그가 리포트에 표시됩니다.
+
+### 6) `github-contributors` — 월별 기여자 흐름
+
+최근 24개월 기본 브랜치 커밋·PR·이슈 작성자를 관측하고 최근 12개월을 월별로 표시합니다. 활동 기여자, 관측 신규, 직전 달 대비 재참여율, 저장소 연관(`OWNER`/`MEMBER`/`COLLABORATOR`)과 기타 공개 기여자를 구분합니다. 소스별 500건 상한에 도달하면 완전한 전체값으로 오해하지 않도록 `partial`과 잘린 소스를 표시합니다.
+
+### 7) `package-downloads` — npm/PyPI 최근 1개월 다운로드
+
+npm은 저장소의 `package.json`에서 패키지명을 찾은 경우, PyPI는 프로젝트 메타데이터가 해당 GitHub 저장소를 가리키는 경우에만 최근 1개월 다운로드를 반영합니다. 선택한 분석 기간과는 별개인 registry 통계이며, 저장소 연결을 확인할 수 없으면 N/A로 처리합니다.
+
+### 8) 리포트 원시 데이터
+
+리포트의 **GitHub 수집 데이터** 영역은 각 GitHub 수집기의 정규화 전 수집값 또는 파생값, 근거 JSON, 수집 상태와 오류를 보여주며 JSON으로 내려받을 수 있습니다. 접근 토큰·요청 헤더와 전체 HTTP 응답 본문은 저장하지 않습니다.
 
 ---
 
@@ -453,7 +495,7 @@ Vercel 배포 완료 후 Inngest와 연동해야 백그라운드 분석이 동�
 
 ## 디자인 노트
 
-- **DB 미사용 결정** — 모든 PG 쿼리가 `where id = ?` 단건 룩업이었고, raw_metrics는 작성 후 한 번도 읽히지 않았습니다. 영속성이 필요한 유일한 데이터는 "완료된 리포트"이며, 이는 결정적 캐시 키(`rpi:report:{platform}:{owner}/{repo}:{period}`)로 자연스럽게 dedup되어 30일 TTL Redis로 충분합니다 (커밋 `abcc711`).
+- **관계형 DB 미사용 결정** — 현재 조회 패턴은 저장소·기간 단위 리포트와 월별 hash 조회로 한정됩니다. 상세 리포트는 결정적 캐시 키로 30일 dedup하고, 장기 비교값은 TTL 없는 월별 스냅샷 hash에 보존합니다. 점수 계산 입력은 리포트의 `rawSources`에서 실제 열람·다운로드합니다.
 - **GET-safe 라우팅** — `/report/...` GET은 절대로 외부 API를 호출하거나 분석을 시작하지 않습니다. 캐시 미스 시에는 idle UI를 보여주고, 사용자가 "Run Analysis" 버튼을 눌러야만 POST가 발사됩니다 (봇/크롤러로 인한 GitHub 쿼터 소진 방지).
 - **단일 GraphQL 호출 + partial 재시도** — github-search는 4개 검색을 alias로 묶어 1번에 처리하며, alias-level partial 실패까지 재시도해 Community 점수가 일시적 GraphQL 흔들림으로 무너지지 않도록 합니다.
 - **Star Quality** — 단순 별 수가 아닌 stargazer 프로필 기반 UQS로 인기와 신뢰도를 분리합니다. burst 감지로 의심스러운 폭증을 리포트에 명시합니다.

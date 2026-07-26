@@ -16,7 +16,11 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useLocale } from "@/contexts/locale-context";
-import { MetricName } from "@/components/metric-name";
+import {
+  getMetricDescription,
+  getMetricLabel,
+} from "@/lib/i18n/metric-labels";
+import { getCategoryLabel } from "@/lib/i18n/category-labels";
 import { getMetricDrillDownUrl } from "@/lib/metric-links";
 import type { CategoryScore, Period, Platform } from "@/lib/types";
 
@@ -33,7 +37,7 @@ export function MetricsTable({
   repo: string;
   period: Period;
 }) {
-  const { d } = useLocale();
+  const { d, locale } = useLocale();
   const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
 
   function toggle(key: string) {
@@ -54,7 +58,28 @@ export function MetricsTable({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      <div className="rounded-xl border border-border/70 bg-muted/25 p-4">
+        <h3 className="text-sm font-medium">{d.metricsTable.guideTitle}</h3>
+        <dl className="mt-3 grid gap-3 text-xs leading-relaxed text-muted-foreground sm:grid-cols-2">
+          <div>
+            <dt className="font-medium text-foreground">{d.metricsTable.raw}</dt>
+            <dd>{d.metricsTable.guideRaw}</dd>
+          </div>
+          <div>
+            <dt className="font-medium text-foreground">{d.metricsTable.normalized}</dt>
+            <dd>{d.metricsTable.guideNormalized}</dd>
+          </div>
+          <div>
+            <dt className="font-medium text-foreground">{d.metricsTable.weight}</dt>
+            <dd>{d.metricsTable.guideWeight}</dd>
+          </div>
+          <div>
+            <dt className="font-medium text-foreground">{d.metricsTable.contribution}</dt>
+            <dd>{d.metricsTable.guideContribution}</dd>
+          </div>
+        </dl>
+      </div>
       {entries.map(([key, cat]) => (
         <Collapsible
           key={key}
@@ -62,7 +87,9 @@ export function MetricsTable({
           onOpenChange={() => toggle(key)}
         >
           <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl border border-border/70 px-4 py-3 text-left hover:bg-muted/50">
-            <span className="text-sm font-medium">{cat.name || key}</span>
+            <span className="text-sm font-medium">
+              {getCategoryLabel(key, cat.name, locale)}
+            </span>
             <span className="flex items-center gap-3">
               <span className="text-sm font-mono tabular-nums text-muted-foreground">
                 {cat.insufficient
@@ -97,9 +124,11 @@ export function MetricsTable({
                       const drillUrl = getMetricDrillDownUrl(name, platform, owner, repo, period);
                       return (
                         <TableRow key={name}>
-                          <TableCell className="text-sm max-w-[10rem] sm:max-w-[14rem]">
-                            <span className="inline-flex items-center gap-1">
-                              <MetricName metricKey={name} />
+                          <TableCell className="min-w-[16rem] max-w-[24rem] align-top text-sm">
+                            <div className="flex items-center gap-1">
+                              <span className="font-medium">
+                                {getMetricLabel(name, locale)}
+                              </span>
                               {drillUrl && (
                                 <a
                                   href={drillUrl}
@@ -112,18 +141,21 @@ export function MetricsTable({
                                   ↗
                                 </a>
                               )}
-                            </span>
+                            </div>
+                            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                              {getMetricDescription(name, locale)}
+                            </p>
                           </TableCell>
-                          <TableCell className="text-right font-mono tabular-nums text-sm">
+                          <TableCell className="align-top text-right font-mono tabular-nums text-sm">
                             {m.raw !== null ? m.raw.toLocaleString() : "N/A"}
                           </TableCell>
-                          <TableCell className="text-right font-mono tabular-nums text-sm hidden md:table-cell">
+                          <TableCell className="hidden align-top text-right font-mono tabular-nums text-sm md:table-cell">
                             {m.normalized !== null ? m.normalized.toFixed(3) : "N/A"}
                           </TableCell>
-                          <TableCell className="text-right font-mono tabular-nums text-sm hidden sm:table-cell">
+                          <TableCell className="hidden align-top text-right font-mono tabular-nums text-sm sm:table-cell">
                             {m.weighted !== null ? m.weighted.toFixed(3) : "—"}
                           </TableCell>
-                          <TableCell className="text-right font-mono tabular-nums text-sm">
+                          <TableCell className="align-top text-right font-mono tabular-nums text-sm">
                             {m.weighted !== null
                               ? (m.weighted * 100).toFixed(1)
                               : "—"}

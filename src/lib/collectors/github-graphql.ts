@@ -113,8 +113,15 @@ export async function collectGitHubGraphQL(
     return { source: "github-graphql", metrics: [], error: "No repository data returned" };
   }
 
-  const defaultBranchRef = r.defaultBranchRef as { target?: { history?: { totalCount?: number } } } | null;
-  const commitCount = defaultBranchRef?.target?.history?.totalCount ?? 0;
+  const defaultBranchRef = r.defaultBranchRef as {
+    target?: { history?: { totalCount?: number } };
+  } | null;
+  const commitCount =
+    defaultBranchRef === null
+      ? 0
+      : typeof defaultBranchRef?.target?.history?.totalCount === "number"
+        ? defaultBranchRef.target.history.totalCount
+        : null;
 
   const watchers = (r.watchers as { totalCount?: number } | null)?.totalCount ?? null;
   const issues = (r.issues as { totalCount?: number } | null)?.totalCount ?? null;

@@ -50,6 +50,7 @@ export function getMetricDrillDownUrl(
       case "G3.2":
         return `${base}/issues?q=${enc(`is:issue closed:>${since}`)}`;
       case "G3.3":
+      case "G3.4":
         return `${base}/issues?q=${enc(`is:issue created:>${since}`)}`;
 
       case "G4.1":

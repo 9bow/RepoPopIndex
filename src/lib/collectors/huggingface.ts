@@ -88,7 +88,9 @@ async function fetchCommits(
 
     await waitForRateLimit("huggingface");
     const res = await fetchWithRetry(url, { headers });
-    if (!res.ok) break;
+    if (!res.ok) {
+      throw new Error(`Hugging Face commits HTTP ${res.status}`);
+    }
 
     const body = (await res.json()) as HfCommit[] | { commits?: HfCommit[]; nextCursor?: string };
 
@@ -137,12 +139,12 @@ async function fetchCommits(
 
 async function fetchDiscussions(
   baseUrl: string
-): Promise<{ total: number; prCount: number }> {
+): Promise<{ total: number; prCount: number } | null> {
   const headers = authHeaders();
   await waitForRateLimit("huggingface");
 
   const res = await fetchWithRetry(`${baseUrl}/discussions?limit=100`, { headers });
-  if (!res.ok) return { total: 0, prCount: 0 };
+  if (!res.ok) return null;
 
   const body = (await res.json()) as { discussions?: HfDiscussion[]; count?: number } | HfDiscussion[];
 
@@ -221,23 +223,27 @@ export async function collectHuggingFace(
   const qualityLikeScore = likes * Math.max(0.3, hfQualityFactor);
 
   // Step 2: commits
-  let commitData = { count: 0, contributors: 0, daysSinceLast: null as number | null };
+  let commitData: {
+    count: number;
+    contributors: number;
+    daysSinceLast: number | null;
+  } | null = null;
   try {
     commitData = await fetchCommits(baseUrl, since);
   } catch {
-    // non-fatal: leave zeroes
+    // non-fatal: surface unavailable values below
   }
 
   // Step 3: discussions
-  let discussionData = { total: 0, prCount: 0 };
+  let discussionData: { total: number; prCount: number } | null = null;
   try {
     discussionData = await fetchDiscussions(baseUrl);
   } catch {
-    // non-fatal: leave zeroes
+    // non-fatal: surface unavailable values below
   }
 
   // Step 4: derived models count (for models only)
-  let derivedModelsCount = 0;
+  let derivedModelsCount: number | null = isModel ? null : 0;
   if (isModel) {
     try {
       await waitForRateLimit("huggingface");
@@ -314,27 +320,27 @@ export async function collectHuggingFace(
       {
         category: "H3",
         metricKey: "commit_count",
-        rawValue: commitData.count,
+        rawValue: commitData?.count ?? null,
       },
       {
         category: "H3",
         metricKey: "unique_contributors",
-        rawValue: commitData.contributors,
+        rawValue: commitData?.contributors ?? null,
       },
       {
         category: "H3",
         metricKey: "days_since_last_commit",
-        rawValue: commitData.daysSinceLast,
+        rawValue: commitData?.daysSinceLast ?? null,
       },
       {
         category: "H4",
         metricKey: "discussion_count",
-        rawValue: discussionData.total,
+        rawValue: discussionData?.total ?? null,
       },
       {
         category: "H4",
         metricKey: "pr_count",
-        rawValue: discussionData.prCount,
+        rawValue: discussionData?.prCount ?? null,
       },
       {
         category: "H2",

@@ -23,9 +23,9 @@ function buildResult(
 
 // Sub-source metric definitions at their maxI — these produce normalized = 1.0
 const HN_METRICS = [
-  { category: "S1", metricKey: "story_count", rawValue: 50 },       // maxI: 50
-  { category: "S1", metricKey: "total_points", rawValue: 2000 },    // maxI: 2000
-  { category: "S1", metricKey: "engagement", rawValue: 5000 },      // maxI: 5000
+  { category: "S1", metricKey: "story_count", rawValue: 25 },       // maxI: 25
+  { category: "S1", metricKey: "total_points", rawValue: 400 },     // maxI: 400
+  { category: "S1", metricKey: "engagement", rawValue: 600 },       // maxI: 600
 ];
 
 const REDDIT_METRICS = [
@@ -35,15 +35,15 @@ const REDDIT_METRICS = [
 ];
 
 const SO_METRICS = [
-  { category: "S1", metricKey: "so_question_count", rawValue: 50 },    // maxI: 50
+  { category: "S1", metricKey: "so_question_count", rawValue: 3 },     // maxI: 3
   { category: "S1", metricKey: "so_answered_ratio", rawValue: 1.0 },   // maxI: 1.0 (linear)
-  { category: "S1", metricKey: "so_score_sum", rawValue: 200 },        // maxI: 200
+  { category: "S1", metricKey: "so_score_sum", rawValue: 20 },         // maxI: 20
 ];
 
 const YT_METRICS = [
-  { category: "S1", metricKey: "youtube_video_count", rawValue: 20 },      // maxI: 20
-  { category: "S1", metricKey: "youtube_view_sum", rawValue: 1_000_000 },  // maxI: 1_000_000
-  { category: "S1", metricKey: "youtube_like_sum", rawValue: 20_000 },     // maxI: 20_000
+  { category: "S1", metricKey: "youtube_video_count", rawValue: 3 },       // maxI: 3
+  { category: "S1", metricKey: "youtube_view_sum", rawValue: 50_000 },     // maxI: 50_000
+  { category: "S1", metricKey: "youtube_like_sum", rawValue: 1_000 },      // maxI: 1_000
 ];
 
 describe("computeCategoryScores — S1 proportional re-normalization", () => {
@@ -85,9 +85,9 @@ describe("computeCategoryScores — S1 proportional re-normalization", () => {
     // HN at ~50% max — reddit/SO/YT absent
     const hnHalf: CollectorResult[] = [
       buildResult("hackernews", [
-        { category: "S1", metricKey: "story_count", rawValue: 25 },
-        { category: "S1", metricKey: "total_points", rawValue: 1000 },
-        { category: "S1", metricKey: "engagement", rawValue: 2500 },
+        { category: "S1", metricKey: "story_count", rawValue: 5 },
+        { category: "S1", metricKey: "total_points", rawValue: 80 },
+        { category: "S1", metricKey: "engagement", rawValue: 120 },
       ]),
       buildResult("stackoverflow", SO_METRICS),
       buildResult("youtube", YT_METRICS),

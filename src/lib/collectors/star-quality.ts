@@ -112,7 +112,17 @@ export async function analyzeStarQuality(
       { owner, repo }
     );
 
-    const totalStars = totalData?.repository?.stargazerCount ?? 0;
+    const totalStars = totalData?.repository?.stargazerCount;
+    if (typeof totalStars !== "number") {
+      return {
+        source: "star-quality",
+        metrics: [
+          { category: "G8", metricKey: "G8.1", rawValue: null },
+          { category: "G8", metricKey: "G8.2", rawValue: null },
+        ],
+        error: "total stargazer count unavailable",
+      };
+    }
 
     if (totalStars === 0) {
       return {

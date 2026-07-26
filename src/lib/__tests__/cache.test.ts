@@ -13,6 +13,9 @@ import { vi } from "vitest";
 // In-memory Redis fake (hoisted so vi.mock factory can access it)
 // ---------------------------------------------------------------------------
 const lists = vi.hoisted(() => new Map<string, unknown[]>());
+const hashes = vi.hoisted(
+  () => new Map<string, Record<string, unknown>>()
+);
 
 vi.mock("@/lib/rate-limiter", () => ({
   redis: {
@@ -55,6 +58,11 @@ vi.mock("@/lib/rate-limiter", () => ({
 
     get: async () => null,
     set: async () => "OK",
+    hset: async (key: string, values: Record<string, unknown>) => {
+      hashes.set(key, { ...(hashes.get(key) ?? {}), ...values });
+      return Object.keys(values).length;
+    },
+    hgetall: async (key: string) => hashes.get(key) ?? null,
   },
 }));
 
@@ -63,7 +71,9 @@ import {
   pushRecentReport,
   getRecentReports,
   RECENT_REPORTS_KEY,
+  saveMonthlyReportSnapshot,
 } from "@/lib/cache";
+import type { AnalysisReport } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -85,7 +95,7 @@ function makeEntry(
     period: "1m" as const,
     score: i * 10,
     scoreVersion: "v2" as const,
-    completedAt: "2026-01-01T00:00:00Z",
+    completedAt: new Date().toISOString(),
     ...overrides,
   };
 }
@@ -93,6 +103,86 @@ function makeEntry(
 describe("pushRecentReport / getRecentReports", () => {
   beforeEach(() => {
     lists.clear();
+    hashes.clear();
+  });
+
+  it("stores one replaceable snapshot per calendar month", async () => {
+    const report = (completedAt: string, compositeScore: number): AnalysisReport => ({
+      id: completedAt,
+      platform: "github",
+      owner: "org",
+      repo: "repo",
+      period: "3m",
+      status: "complete",
+      compositeScore,
+      categoryScores: {
+        "G-Activity": {
+          name: "Activity",
+          score: compositeScore,
+          maxScore: 100,
+          insufficient: false,
+          metrics: {
+            "G2.5": {
+              raw: 10,
+              normalized: 0.5,
+              weighted: 0.5,
+            },
+          },
+        },
+      },
+      excludedCategories: [],
+      starQuality: null,
+      socialBuzz: {
+        hn: null,
+        reddit: null,
+        stackoverflow: null,
+        youtube: null,
+      },
+      createdAt: completedAt,
+      completedAt,
+    });
+
+    await saveMonthlyReportSnapshot(report("2026-06-10T00:00:00Z", 40));
+    await saveMonthlyReportSnapshot(report("2026-06-20T00:00:00Z", 45));
+    const snapshots = await saveMonthlyReportSnapshot(
+      report("2026-07-10T00:00:00Z", 50)
+    );
+
+    expect(snapshots).toHaveLength(2);
+    expect(snapshots.map((snapshot) => snapshot.month)).toEqual([
+      "2026-06",
+      "2026-07",
+    ]);
+    expect(snapshots[0].compositeScore).toBe(45);
+    expect(snapshots[0].status).toBe("complete");
+    expect(snapshots[0].missingSources).toEqual([]);
+
+    const samplingLimitedReport = report("2026-08-10T00:00:00Z", 55);
+    samplingLimitedReport.contributorInsights = {
+      windowMonths: 12,
+      observationMonths: 24,
+      generatedAt: "2026-08-10T00:00:00Z",
+      activeContributors: 100,
+      observedNewContributors: 80,
+      firstTimeContributorSignals: 0,
+      affiliatedContributors: 5,
+      externalContributors: 90,
+      unknownAssociationContributors: 5,
+      latestCompleteMonthRetentionRate: 0.2,
+      monthly: [],
+      dataQuality: {
+        status: "partial",
+        truncatedSources: ["commits"],
+        limitations: [],
+      },
+    };
+    const snapshotsWithSamplingLimit = await saveMonthlyReportSnapshot(
+      samplingLimitedReport
+    );
+    expect(snapshotsWithSamplingLimit.at(-1)?.status).toBe("partial");
+    expect(snapshotsWithSamplingLimit.at(-1)?.missingSources).toEqual([
+      "github-contributors:commits",
+    ]);
   });
 
   it("dedupes: pushing same {platform,owner,repo,period} twice keeps only the latest entry", async () => {
@@ -102,7 +192,7 @@ describe("pushRecentReport / getRecentReports", () => {
       repo: "react",
       period: "3m" as const,
       scoreVersion: "v2" as const,
-      completedAt: "2026-01-01T00:00:00Z",
+      completedAt: new Date().toISOString(),
     };
 
     await pushRecentReport({ ...base, score: 75 });

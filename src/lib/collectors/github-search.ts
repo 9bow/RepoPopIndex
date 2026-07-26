@@ -1,4 +1,8 @@
-import type { CollectorResult, Period } from "@/lib/types";
+import type {
+  CollectorResult,
+  FirstResponseSummary,
+  Period,
+} from "@/lib/types";
 import { fetchWithRetry } from "@/lib/retry";
 import { waitForRateLimit } from "@/lib/rate-limiter";
 import { periodToSinceDate } from "@/lib/types";
@@ -34,9 +38,16 @@ interface GraphQLSearchData {
       node?: {
         __typename?: string;
         createdAt?: string;
-        timelineItems?: {
+        author?: { login?: string } | null;
+        comments?: {
+          totalCount?: number;
           nodes?: Array<{
             createdAt?: string;
+            authorAssociation?: string;
+            author?: {
+              login?: string;
+              __typename?: string;
+            } | null;
           }>;
         };
       };
@@ -71,16 +82,18 @@ const COMMUNITY_QUERY = `
         }
       }
     }
-    recentIssuesTFR: search(query: $recentIssuesTFRQ, type: ISSUE, first: 10) {
+    recentIssuesTFR: search(query: $recentIssuesTFRQ, type: ISSUE, first: 30) {
       edges {
         node {
           ... on Issue {
             createdAt
-            timelineItems(first: 1, itemTypes: [ISSUE_COMMENT]) {
+            author { login }
+            comments(first: 20) {
+              totalCount
               nodes {
-                ... on IssueComment {
-                  createdAt
-                }
+                createdAt
+                authorAssociation
+                author { login __typename }
               }
             }
           }
@@ -107,19 +120,92 @@ function medianMergeDays(edges: NonNullable<SearchResult["edges"]>): number | nu
   return medianDays(days);
 }
 
-function medianFirstResponseDays(
+const MAINTAINER_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+
+function isBotActor(actor: { login?: string; __typename?: string } | null | undefined): boolean {
+  if (!actor?.login) return false;
+  const login = actor.login.toLowerCase();
+  return (
+    actor.__typename === "Bot" ||
+    login.endsWith("[bot]") ||
+    login.endsWith("-bot")
+  );
+}
+
+function medianHours(values: number[]): number | null {
+  const median = medianDays(values.map((hours) => hours / 24));
+  return median === null ? null : median * 24;
+}
+
+export function computeFirstResponseSummary(
   edges: NonNullable<NonNullable<GraphQLSearchData["recentIssuesTFR"]>["edges"]>
-): number | null {
-  const days: number[] = [];
+): FirstResponseSummary {
+  const humanHours: number[] = [];
+  const maintainerHours: number[] = [];
+  let unansweredByHuman = 0;
+  let unansweredByMaintainer = 0;
+  let excludedSelfComments = 0;
+  let excludedBotComments = 0;
+  let commentsTruncated = false;
+
   for (const e of edges) {
     const n = e.node;
     if (!n?.createdAt) continue;
-    const firstComment = n.timelineItems?.nodes?.[0];
-    if (!firstComment?.createdAt) continue;
-    const ms = new Date(firstComment.createdAt).getTime() - new Date(n.createdAt).getTime();
-    if (ms >= 0) days.push(ms / 86_400_000);
+    const issueAuthor = n.author?.login?.toLowerCase();
+    const comments = [...(n.comments?.nodes ?? [])]
+      .filter((comment) => comment.createdAt)
+      .sort(
+        (left, right) =>
+          new Date(left.createdAt!).getTime() -
+          new Date(right.createdAt!).getTime()
+      );
+    if ((n.comments?.totalCount ?? 0) > comments.length) commentsTruncated = true;
+
+    let firstHumanHours: number | null = null;
+    let firstMaintainerHours: number | null = null;
+    for (const comment of comments) {
+      const commentAuthor = comment.author?.login?.toLowerCase();
+      if (commentAuthor && issueAuthor && commentAuthor === issueAuthor) {
+        excludedSelfComments++;
+        continue;
+      }
+      if (isBotActor(comment.author)) {
+        excludedBotComments++;
+        continue;
+      }
+
+      const ms =
+        new Date(comment.createdAt!).getTime() -
+        new Date(n.createdAt).getTime();
+      if (ms < 0) continue;
+      const hours = ms / 3_600_000;
+      if (firstHumanHours === null) firstHumanHours = hours;
+      if (
+        firstMaintainerHours === null &&
+        MAINTAINER_ASSOCIATIONS.has(comment.authorAssociation ?? "")
+      ) {
+        firstMaintainerHours = hours;
+      }
+    }
+
+    if (firstHumanHours === null) unansweredByHuman++;
+    else humanHours.push(firstHumanHours);
+    if (firstMaintainerHours === null) unansweredByMaintainer++;
+    else maintainerHours.push(firstMaintainerHours);
   }
-  return medianDays(days);
+
+  return {
+    sampledIssues: edges.filter((edge) => edge.node?.createdAt).length,
+    humanResponses: humanHours.length,
+    maintainerResponses: maintainerHours.length,
+    unansweredByHuman,
+    unansweredByMaintainer,
+    medianHumanResponseHours: medianHours(humanHours),
+    medianMaintainerResponseHours: medianHours(maintainerHours),
+    excludedSelfComments,
+    excludedBotComments,
+    commentsTruncated,
+  };
 }
 
 interface SearchAttemptResult {
@@ -264,7 +350,13 @@ export async function collectGitHubSearch(
       : null;
 
   const tfrEdges = data.recentIssuesTFR?.edges ?? null;
-  const medianFirstResponse = tfrEdges !== null ? medianFirstResponseDays(tfrEdges) : null;
+  const firstResponse =
+    tfrEdges !== null ? computeFirstResponseSummary(tfrEdges) : null;
+  const medianFirstResponse =
+    firstResponse?.medianHumanResponseHours !== null &&
+    firstResponse?.medianHumanResponseHours !== undefined
+      ? firstResponse.medianHumanResponseHours / 24
+      : null;
 
   return {
     source: "github-search",
@@ -272,7 +364,12 @@ export async function collectGitHubSearch(
       { category: "G3", metricKey: "G3.1", rawValue: issuesOpened },
       { category: "G3", metricKey: "G3.2", rawValue: issuesClosed },
       { category: "G3", metricKey: "G3.3", rawValue: issueCloseRatio },
-      { category: "G3", metricKey: "G3.4", rawValue: medianFirstResponse },
+      {
+        category: "G3",
+        metricKey: "G3.4",
+        rawValue: medianFirstResponse,
+        rawJson: firstResponse,
+      },
       { category: "G4", metricKey: "G4.1", rawValue: prsOpened },
       { category: "G4", metricKey: "G4.2", rawValue: prsMerged },
       { category: "G4", metricKey: "G4.3", rawValue: prMergeRatio },

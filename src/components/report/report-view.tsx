@@ -9,6 +9,9 @@ import { CategoryCards } from "@/components/report/category-cards";
 import { StarQualityCard } from "@/components/report/star-quality-card";
 import { SocialBuzzCard } from "@/components/report/social-buzz-card";
 import { MetricsTable } from "@/components/report/metrics-table";
+import { ContributorInsightsCard } from "@/components/report/contributor-insights-card";
+import { SnapshotHistoryCard } from "@/components/report/snapshot-history-card";
+import { RawDataCard } from "@/components/report/raw-data-card";
 import { useLocale } from "@/contexts/locale-context";
 import type { AnalysisReport, Period } from "@/lib/types";
 
@@ -103,6 +106,33 @@ export function ReportView({ report }: ReportViewProps) {
         <CategoryCards categoryScores={report.categoryScores} />
       </section>
 
+      {report.platform === "github" && report.contributorInsights && (
+        <section>
+          <h2 className="mb-4 sm:mb-5 text-lg sm:text-xl font-semibold font-display tracking-tight">
+            {d.report.contributorFlow}
+          </h2>
+          <ContributorInsightsCard
+            insights={report.contributorInsights}
+            firstResponse={report.firstResponse ?? null}
+            owner={report.owner}
+            repo={report.repo}
+          />
+        </section>
+      )}
+
+      {report.snapshots && report.snapshots.length > 0 && (
+        <section>
+          <h2 className="mb-4 sm:mb-5 text-lg sm:text-xl font-semibold font-display tracking-tight">
+            {d.report.performanceHistory}
+          </h2>
+          <SnapshotHistoryCard
+            snapshots={report.snapshots}
+            owner={report.owner}
+            repo={report.repo}
+          />
+        </section>
+      )}
+
       {report.starQuality && (
         <section>
           <h2 className="mb-4 sm:mb-5 text-lg sm:text-xl font-semibold font-display tracking-tight">{d.report.starQuality}</h2>
@@ -125,6 +155,22 @@ export function ReportView({ report }: ReportViewProps) {
           period={report.period}
         />
       </section>
+
+      {report.platform === "github" &&
+        report.rawSources &&
+        report.rawSources.length > 0 && (
+          <section>
+            <h2 className="mb-4 sm:mb-5 text-lg sm:text-xl font-semibold font-display tracking-tight">
+              {d.report.rawData}
+            </h2>
+            <RawDataCard
+              sources={report.rawSources}
+              owner={report.owner}
+              repo={report.repo}
+              period={report.period}
+            />
+          </section>
+        )}
 
       <footer className="mt-8 border-t pt-6 text-sm text-muted-foreground space-y-2">
         <p>{d.report.footerFormula}</p>
